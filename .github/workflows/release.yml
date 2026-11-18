@@ -1,7 +1,7 @@
 name: Release
 
 # Push a tag that matches VERSION (e.g. `git tag v0.1.0 && git push origin v0.1.0`) to build the
-# DMG and attach it, with SHA-256 checksums, to a draft GitHub Release for review before publishing.
+# DMG and publish it, with SHA-256 checksums, as the latest GitHub Release.
 #
 # Optional repository secrets for a signed + notarized build (otherwise the DMG is ad-hoc signed):
 #   MACOS_CERTIFICATE_P12      base64 of a "Developer ID Application" .p12 (cert + private key)
@@ -70,7 +70,7 @@ jobs:
       - name: Build and verify DMG
         run: scripts/make-dmg.sh
 
-      - name: Upload to draft release
+      - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -82,7 +82,7 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" Glint-*.dmg SHA256SUMS.txt --clobber
           else
-            gh release create "$TAG" Glint-*.dmg SHA256SUMS.txt --draft --generate-notes \
+            gh release create "$TAG" Glint-*.dmg SHA256SUMS.txt --latest --generate-notes \
               --title "Glint $VERSION" --target "$GITHUB_SHA"
           fi
 
