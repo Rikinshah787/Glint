@@ -32,6 +32,13 @@
 
 <sub>All screenshots use Glint's built-in demo data: a fictional week for "Maya Chen", a product manager at a made-up company.</sub>
 
+## Free forever
+
+Glint is a community project, not a product. **It is and will stay 100% free and open source (MIT):**
+no paid plans, no "Pro" tier, no usage limits, no account, no sign-up, no ads, no telemetry.
+The default AI runs on your Mac at no cost. If you choose to add a Claude or OpenAI key, you pay
+those providers directly for what you use — Glint never sees or bills anything.
+
 ## Why Glint
 
 - **Local-first.** Captured text, embeddings, sessions and chats live in one SQLite file on your Mac.
@@ -180,7 +187,7 @@ More: [docs/faq.md](docs/faq.md) · [docs/troubleshooting.md](docs/troubleshooti
 
 Ideas we want to build, not promises. Discuss or pick one up in [Issues](https://github.com/Rikinshah787/Glint/issues).
 
-- [ ] Signed and notarized releases for every tag
+- [ ] Notarized releases (needs a donated/sponsored Apple Developer account; until then, right-click → Open)
 - [ ] More connectors (read-only): calendar and mail providers beyond Google, local folders
 - [ ] Export your memory (Markdown / JSON) and per-project retention
 - [ ] Richer MCP tools (sessions, graph queries) with per-tool permissions

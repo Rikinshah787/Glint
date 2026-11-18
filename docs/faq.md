@@ -1,5 +1,15 @@
 # FAQ
 
+### Is Glint really free?
+Yes, completely and permanently. Glint is MIT-licensed open source with no paid plans, no "Pro" tier,
+no limits, no account and no telemetry. On-device AI costs nothing. Adding your own Claude or OpenAI key
+is optional; if you do, you pay that provider directly for your own usage.
+
+### Why does macOS warn me the first time I open it?
+Apple charges developers for notarization, and Glint doesn't sell anything. Right-click (or Control-click)
+Glint in Applications → **Open** → **Open** once, and macOS remembers your choice. You can also build it
+yourself from source in a few minutes.
+
 ### Does Glint record my screen?
 No video and no stored screenshots. It reads the text of the focused window through macOS Accessibility
 (optionally OCR for apps without accessible text). Quick Ask, Glance and on-screen pointers can send a
