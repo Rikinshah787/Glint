@@ -1,0 +1,1008 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glint</title>
+<style>
+:root, :root[data-theme="light"] {
+  --bg: #f6f5f2; --side: #efede8; --panel: #ffffff; --panel-2: #f8f7f4; --line: #e4e1da;
+  --text: #1d1b18; --muted: #75716a; --faint: #a39f97;
+  --accent: #2f6f5e; --accent-2: #e6f0ec; --warn: #b5651d; --danger: #c0392b; --danger-2: #fbe9e7;
+  --hl: #fff0b3; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.06);
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #141412; --side: #1b1a18; --panel: #201f1c; --panel-2: #262521; --line: #33312c;
+    --text: #ecebe7; --muted: #a29e95; --faint: #6f6b63;
+    --accent: #6cc3a6; --accent-2: #1f3530; --warn: #e2a25a; --danger: #ff7a6b; --danger-2: #3a1f1c;
+    --hl: #4d4318; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+} }
+:root[data-theme="dark"] {
+  --bg: #141412; --side: #1b1a18; --panel: #201f1c; --panel-2: #262521; --line: #33312c;
+  --text: #ecebe7; --muted: #a29e95; --faint: #6f6b63; --accent: #6cc3a6; --accent-2: #1f3530;
+  --warn: #e2a25a; --danger: #ff7a6b; --danger-2: #3a1f1c; --hl: #4d4318;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); overflow: hidden;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: 1px solid var(--line); background: var(--panel); border-radius: 9px; padding: 7px 12px; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+button.ghost:hover { color: var(--text); background: var(--panel-2); }
+button.danger { color: var(--danger); }
+button.danger.solid { background: var(--danger); border-color: var(--danger); color: #fff; }
+input[type=text], input[type=password], input[type=number], input[type=search], select, textarea {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; outline: none; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-2); }
+code { font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel-2); padding: 1px 5px; border-radius: 5px; }
+mark { background: var(--hl); color: inherit; border-radius: 3px; }
+
+.app { display: grid; grid-template-columns: 216px 1fr; height: 100vh; }
+.side { position: relative; background: var(--side); border-right: 1px solid var(--line); padding: 38px 10px 12px; display: flex; flex-direction: column; gap: 2px; -webkit-app-region: drag; }
+.brand { display: flex; align-items: center; gap: 8px; padding: 0 10px 14px; font-weight: 650; letter-spacing: -.01em; }
+.brand .logo { width: 22px; height: 22px; border-radius: 7px; background: var(--accent); display: grid; place-items: center; color: #fff; font-size: 13px; }
+.nav { -webkit-app-region: no-drag; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px; color: var(--muted); cursor: pointer; user-select: none; }
+.nav:hover { background: var(--panel-2); color: var(--text); }
+.nav.on { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
+.nav svg { width: 17px; height: 17px; flex: none; }
+.side .grow { flex: 1; }
+.cap { -webkit-app-region: no-drag; margin: 6px 4px 0; padding: 10px; border-radius: 11px; background: var(--panel); border: 1px solid var(--line); font-size: 12px; }
+.cap .row { display: flex; align-items: center; gap: 7px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
+.dot.live { background: #2fae7c; box-shadow: 0 0 0 3px rgba(47,174,124,.18); }
+.dot.paused { background: var(--warn); }
+.cap .what { color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cap .acts { display: flex; gap: 6px; margin-top: 8px; }
+.cap .acts button { padding: 4px 8px; font-size: 12px; flex: 1; }
+
+main { overflow: auto; height: 100vh; }
+.view { display: none; padding: 34px 32px 48px; max-width: 1080px; margin: 0 auto; }
+.view.on { display: block; }
+.head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+.head h1 { margin: 0; font-size: 26px; letter-spacing: -.02em; }
+.head .sub { color: var(--muted); margin-top: 2px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.muted { color: var(--muted); }
+.empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+.chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 9px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip.accent { background: var(--accent-2); color: var(--accent); border-color: transparent; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.banner { padding: 12px 14px; border-radius: 12px; background: var(--danger-2); color: var(--danger); margin-bottom: 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+.banner.info { background: var(--accent-2); color: var(--accent); }
+
+/* Today */
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 16px; }
+.tile { padding: 14px 16px; }
+.tile b { display: block; font-size: 22px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.tile span { color: var(--muted); font-size: 12px; }
+.timeline { padding: 16px; margin-bottom: 16px; }
+.bar { position: relative; height: 34px; border-radius: 8px; background: var(--panel-2); overflow: hidden; margin: 10px 0 6px; }
+.seg { position: absolute; top: 0; bottom: 0; min-width: 2px; opacity: .9; }
+.seg:hover { opacity: 1; outline: 2px solid var(--text); z-index: 2; }
+.hours { display: flex; justify-content: space-between; color: var(--faint); font-size: 11px; }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.split { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.sess { padding: 16px 18px; margin-bottom: 12px; }
+.sess-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.sess h3 { margin: 0; font-size: 16px; letter-spacing: -.01em; }
+.sess .when { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.sess p { margin: 10px 0 0; }
+.ins { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.ins li { padding: 10px 12px; border-radius: 10px; background: var(--panel-2); }
+.ins b { display: block; }
+.ins span { color: var(--muted); font-size: 13px; }
+.focus { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-weight: 650; font-size: 13px; flex: none;
+  background: conic-gradient(var(--accent) calc(var(--v) * 1%), var(--panel-2) 0); position: relative; }
+.focus::after { content: attr(data-v); position: absolute; inset: 5px; border-radius: 50%; background: var(--panel); display: grid; place-items: center; }
+.sess-acts { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+.sess-acts button { padding: 4px 10px; font-size: 12.5px; }
+.caps { margin-top: 10px; max-height: 260px; overflow: auto; border-top: 1px solid var(--line); }
+.caps div { display: grid; grid-template-columns: 54px 110px 1fr; gap: 8px; padding: 5px 2px; font-size: 12.5px; border-bottom: 1px solid var(--line); }
+.apps { padding: 16px; }
+.approw { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; margin-bottom: 10px; font-size: 13px; }
+.approw .track { grid-column: 1 / -1; height: 6px; border-radius: 4px; background: var(--panel-2); overflow: hidden; }
+.approw .track i { display: block; height: 100%; border-radius: 4px; }
+
+/* Ask */
+#v-ask.on { display: grid; grid-template-columns: 230px 1fr; gap: 0; max-width: none; padding: 0; height: 100vh; }
+.threads { border-right: 1px solid var(--line); padding: 34px 10px 12px; overflow: auto; }
+.threads .t { padding: 8px 10px; border-radius: 9px; cursor: pointer; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+.threads .t span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.threads .t:hover { background: var(--panel-2); color: var(--text); }
+.threads .t.on { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
+.threads .t button { display: none; padding: 0 6px; border: 0; background: none; color: var(--faint); }
+.threads .t:hover button { display: block; }
+.chat { display: flex; flex-direction: column; height: 100vh; min-width: 0; }
+.msgs { flex: 1; overflow: auto; padding: 34px 0 20px; }
+.msgs .inner { max-width: 760px; margin: 0 auto; padding: 0 28px; }
+.msg { margin-bottom: 22px; }
+.msg.user .bubble { background: var(--accent-2); padding: 10px 14px; border-radius: 14px 14px 4px 14px; margin-left: auto; max-width: 80%; width: fit-content; white-space: pre-wrap; }
+.msg.assistant .bubble { line-height: 1.6; }
+.bubble p { margin: 0 0 10px; } .bubble p:last-child { margin-bottom: 0; }
+.bubble ul, .bubble ol { margin: 6px 0 10px; padding-left: 22px; }
+.bubble pre { background: var(--panel-2); border: 1px solid var(--line); padding: 10px 12px; border-radius: 10px; overflow: auto; }
+.bubble pre code { background: none; padding: 0; }
+.bubble h3, .bubble h4 { margin: 12px 0 6px; }
+.toolchips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.err { color: var(--danger); }
+.suggest { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 18px; }
+.suggest button { text-align: left; padding: 12px 14px; border-radius: 12px; color: var(--muted); }
+.composer { padding: 12px 28px 22px; }
+.composer .box { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; padding: 8px; }
+.composer textarea { flex: 1; border: 0; box-shadow: none !important; resize: none; max-height: 200px; min-height: 24px; padding: 6px 8px; background: transparent; }
+.typing::after { content: "▍"; animation: blink 1s steps(2) infinite; color: var(--accent); }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* Memory */
+.controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.controls input[type=search] { flex: 1 1 280px; padding: 10px 12px; font-size: 15px; }
+.mem { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 14px; }
+.mlist { max-height: calc(100vh - 290px); min-height: 320px; overflow: auto; padding: 6px; }
+.mrow { display: grid; grid-template-columns: 20px 30px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 9px; border-radius: 10px; cursor: pointer; }
+.mrow:hover { background: var(--panel-2); } .mrow.on { background: var(--accent-2); }
+.ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 13px; }
+.ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mprev { padding: 18px; max-height: calc(100vh - 290px); min-height: 320px; overflow: auto; }
+.mtext { white-space: pre-wrap; word-break: break-word; background: var(--panel-2); border-radius: 10px; padding: 12px; font-size: 13px; margin-top: 10px; }
+.mmeta { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+
+/* Tasks + settings */
+.task { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); align-items: start; }
+.task:last-child { border-bottom: 0; }
+.task.done .tt { text-decoration: line-through; color: var(--muted); }
+.task .notes { color: var(--muted); font-size: 12.5px; white-space: pre-wrap; margin-top: 2px; }
+.sect { padding: 18px 20px; margin-bottom: 14px; }
+.sect h2 { margin: 0 0 4px; font-size: 16px; }
+.sect > .muted { margin: 0 0 14px; font-size: 13px; }
+.field { display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.field:first-of-type { border-top: 0; }
+.field label { color: var(--muted); }
+.field .ctl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.seg-ctl { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.seg-ctl button { border: 0; border-radius: 0; padding: 7px 14px; }
+.seg-ctl button.on { background: var(--accent); color: #fff; }
+.ok { color: var(--accent); font-size: 12.5px; }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; }
+.toast.on { opacity: 1; }
+.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; place-items: center; z-index: 10; padding: 16px; }
+.modal-bg.on { display: grid; }
+.modal { padding: 20px; max-width: 420px; width: 100%; }
+.modal h3 { margin: 0 0 6px; }
+.modal .acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.qbars { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin-top: 12px; }
+.qbar span { font-size: 11.5px; color: var(--muted); display: flex; justify-content: space-between; }
+.qbar .track { height: 5px; border-radius: 3px; background: var(--panel-2); margin-top: 4px; overflow: hidden; }
+.qbar .track i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.note-in { width: 100%; margin-top: 10px; font-size: 13px; }
+.prog { height: 6px; border-radius: 4px; background: var(--panel-2); overflow: hidden; margin-top: 6px; }
+.prog i { display: block; height: 100%; background: var(--accent); }
+.task input[type=range] { width: 120px; }
+.feed-day { margin: 18px 0 8px; color: var(--muted); font-size: 12.5px; text-transform: uppercase; letter-spacing: .06em; }
+.feed-item { padding: 14px 16px; margin-bottom: 10px; }
+.feed-item .src { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
+.menu { position: absolute; bottom: 58px; left: 8px; right: 8px; padding: 6px; display: none; z-index: 5; }
+.menu.on { display: block; }
+.menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 7px 10px; }
+.menu button:hover { background: var(--panel-2); }
+.swatches { display: flex; gap: 8px; }
+.swatches button { width: 24px; height: 24px; border-radius: 50%; padding: 0; border: 2px solid transparent; }
+.swatches button.on { border-color: var(--text); }
+textarea.doc { width: 100%; min-height: 180px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.mtab[hidden] { display: none; }
+.sb { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
+.slist { max-height: calc(100vh - 220px); overflow: auto; padding-right: 2px; }
+.sday { color: var(--muted); font-size: 12.5px; font-weight: 600; margin: 14px 4px 6px; }
+.sday:first-child { margin-top: 0; }
+.sgroup { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 4px; box-shadow: var(--shadow); }
+.srow { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 10px 12px; border-radius: 10px; cursor: pointer; }
+.srow:hover { background: var(--panel-2); } .srow.on { background: var(--accent-2); }
+.srow .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srow .tm, .srow .dur { color: var(--muted); font-size: 12.5px; text-align: right; white-space: nowrap; }
+.srow .sub { display: flex; gap: 6px; align-items: center; min-width: 0; color: var(--muted); font-size: 13px; }
+.srow .sub span.s { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aic { position: relative; flex: none; width: 18px; height: 18px; border-radius: 5px; display: inline-grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; overflow: hidden; }
+.aic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: var(--panel); }
+.aic.lg { width: 22px; height: 22px; border-radius: 6px; font-size: 11px; }
+.sdetail { padding: 22px; max-height: calc(100vh - 220px); overflow: auto; position: sticky; top: 0; }
+.sdetail h2 { margin: 0; font-size: 21px; letter-spacing: -.02em; display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
+.sdetail .meta { color: var(--muted); margin: 6px 0 14px; }
+.sdetail h4 { margin: 18px 0 8px; font-size: 13px; color: var(--muted); }
+.sitechips { display: flex; flex-wrap: wrap; gap: 8px; }
+.sitechip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); font-size: 13px; }
+.sitechip .muted { font-size: 12px; }
+.rel { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 13.5px; }
+.rel:last-child { border-bottom: 0; } .rel:hover { color: var(--accent); }
+.askbox { display: flex; gap: 8px; margin-top: 18px; padding: 6px 6px 6px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.askbox input { flex: 1; border: 0 !important; box-shadow: none !important; padding: 6px 0; background: transparent; }
+.tl { padding: 6px; max-height: calc(100vh - 220px); overflow: auto; }
+.tlhour { color: var(--faint); font-size: 12px; margin: 10px 8px 4px; }
+.tlrow { display: grid; grid-template-columns: 52px 22px 1fr auto; gap: 10px; align-items: center; padding: 7px 8px; border-radius: 9px; cursor: pointer; font-size: 13.5px; }
+.tlrow:hover { background: var(--panel-2); } .tlrow.on { background: var(--accent-2); }
+.tlrow .muted { font-size: 12px; }
+@media (max-width: 860px) {
+  .app { grid-template-columns: 64px 1fr; } .brand span, .nav span, .cap { display: none; }
+  .tiles { grid-template-columns: repeat(2, minmax(0,1fr)); } .split, .mem { grid-template-columns: 1fr; }
+  #v-ask.on { grid-template-columns: 1fr; } .threads { display: none; } .field { grid-template-columns: 1fr; }
+  .sb { grid-template-columns: 1fr; } .sdetail { position: static; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><div class="logo">◐</div><span>Glint</span></div>
+    <div class="nav on" data-view="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><span>Today</span></div>
+    <div class="nav" data-view="ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></svg><span>Ask</span></div>
+    <div class="nav" data-view="memory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Memory</span></div>
+    <div class="nav" data-view="tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m4 12 5 5L20 6"/></svg><span>Tasks</span></div>
+    <div class="nav" data-view="insights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.9V16h5v-.2c0-.8.4-1.5 1-1.9A6 6 0 0 0 12 3Z"/></svg><span>Insights</span></div>
+    <div class="nav" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg><span>Settings</span></div>
+    <div class="grow"></div>
+    <div class="cap" id="cap">
+      <div class="row"><i class="dot" id="capDot"></i><b id="capState">Starting…</b></div>
+      <div class="what" id="capWhat"></div>
+      <div class="acts"><button id="capPause">Pause</button><button id="capNow">Capture</button></div>
+    </div>
+    <div class="card menu" id="pauseMenu">
+      <button data-pause="30">Pause for 30 minutes</button><button data-pause="60">Pause for 1 hour</button>
+      <button data-pause="tomorrow">Pause until 9am tomorrow</button><button data-pause="indefinite">Pause until I resume</button>
+    </div>
+  </aside>
+
+  <main>
+    <!-- TODAY -->
+    <section class="view on" id="v-today">
+      <div class="head">
+        <div><h1 id="dayTitle">Today</h1><div class="sub" id="daySub"></div></div>
+        <div class="chips"><button class="ghost" id="dayPrev">‹ Prev</button><button id="dayToday">Today</button><button class="ghost" id="dayNext">Next ›</button></div>
+      </div>
+      <div id="todayBanner"></div>
+      <div class="tiles">
+        <div class="card tile"><b id="tTracked">0m</b><span>tracked</span></div>
+        <div class="card tile"><b id="tSessions">0</b><span>work sessions</span></div>
+        <div class="card tile"><b id="tFocus">–</b><span>average focus</span></div>
+        <div class="card tile"><b id="tTop" class="ell">–</b><span>top app</span></div>
+      </div>
+      <div class="card timeline">
+        <b>Timeline</b>
+        <div class="bar" id="bar"></div>
+        <div class="hours" id="hours"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="split">
+        <div id="sessions"></div>
+        <div class="card apps"><b>Time by app</b><div id="appTotals" style="margin-top:12px"></div></div>
+      </div>
+    </section>
+
+    <!-- ASK -->
+    <section class="view" id="v-ask">
+      <div class="threads">
+        <button class="primary" id="newChat" style="width:100%;margin-bottom:10px">New chat</button>
+        <div id="threadList"></div>
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"><div class="inner" id="msgInner"></div></div>
+        <div class="composer"><div class="box card">
+          <textarea id="askInput" rows="1" placeholder="Ask about anything you've seen or worked on…"></textarea>
+          <button class="primary" id="askSend">Ask</button>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- MEMORY -->
+    <section class="view" id="v-memory">
+      <div class="head">
+        <div><h1>Memory</h1><div class="sub">Every session you've worked, searchable and ready to pick up again.</div></div>
+        <div class="seg-ctl" id="memTabs"><button data-tab="sessions" class="on">Sessions</button><button data-tab="timeline">Timeline</button><button data-tab="captures">Captures</button></div>
+      </div>
+
+      <div class="mtab" id="tab-sessions">
+        <div class="controls">
+          <input type="search" id="sq" placeholder="Search sessions, apps and topics…" autocomplete="off">
+          <select id="sdays"><option value="">Any time</option><option value="1">Today</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></select>
+          <select id="sapp"><option value="">All apps</option></select>
+          <select id="sproj"><option value="">All projects</option></select>
+          <span class="muted" id="scount" style="align-self:center;font-size:13px"></span>
+        </div>
+        <div class="sb">
+          <div id="slist" class="slist"></div>
+          <div class="card sdetail" id="sdetail"></div>
+        </div>
+      </div>
+
+      <div class="mtab" id="tab-timeline" hidden>
+        <div class="controls" style="align-items:center">
+          <button class="ghost" id="tlPrev">‹</button><b id="tlDay" style="min-width:150px;text-align:center"></b><button class="ghost" id="tlNext">›</button>
+          <input type="search" id="tlq" placeholder="Filter by app or window…" style="flex:1 1 220px">
+        </div>
+        <div class="sb">
+          <div class="card tl" id="tlList"></div>
+          <div class="card sdetail" id="tlPrev2"></div>
+        </div>
+      </div>
+
+      <div class="mtab" id="tab-captures" hidden>
+        <div class="controls">
+          <input type="search" id="mq" placeholder="Search the raw text of every capture…" autocomplete="off">
+          <select id="msince"><option value="">Any time</option><option value="1">Last hour</option><option value="24">Last 24 hours</option><option value="168">Last 7 days</option><option value="720">Last 30 days</option></select>
+          <select id="mapp"><option value="">All apps</option></select>
+          <select id="mmode"><option value="hybrid">Hybrid</option><option value="keyword">Keyword</option><option value="semantic">Semantic</option></select>
+        </div>
+        <div class="mmeta"><label><input type="checkbox" id="mall"> <span id="mcount">0 captures</span></label><span class="chips" id="memStats"></span><span id="mnote" class="err"></span><button class="danger" id="mdelSel" disabled>Remove selected</button></div>
+        <div class="mem"><div class="card mlist" id="mlist"></div><div class="card mprev" id="mprev"></div></div>
+      </div>
+    </section>
+
+    <!-- TASKS -->
+    <section class="view" id="v-tasks">
+      <div class="head"><div><h1>Tasks</h1><div class="sub">Ask can create and update these for you too.</div></div></div>
+      <div class="card" style="padding:10px;margin-bottom:14px;display:flex;gap:8px">
+        <input type="text" id="taskTitle" placeholder="Add a task…" style="flex:1"><button class="primary" id="taskAdd">Add</button>
+      </div>
+      <div class="card" id="taskList"></div>
+    </section>
+
+    <!-- INSIGHTS -->
+    <section class="view" id="v-insights">
+      <div class="head"><div><h1>Insights</h1><div class="sub">Patterns Glint noticed in your work sessions.</div></div></div>
+      <div id="feed"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="view" id="v-settings">
+      <div class="head"><div><h1>Settings</h1><div class="sub">Everything is stored on this Mac. API keys live in your Keychain.</div></div></div>
+
+      <div class="card sect">
+        <h2>AI</h2><p class="muted">Used for Ask, Quick Ask and session summaries. Only the text needed for a request is sent to the provider you pick.</p>
+        <div class="field"><label>Provider</label><div class="ctl"><div class="seg-ctl" id="provSeg"><button data-p="claude">Claude</button><button data-p="openai">OpenAI</button></div></div></div>
+        <div class="field"><label>Claude model</label><div class="ctl"><input type="text" id="claudeModel" list="claudeModels" style="width:260px"><datalist id="claudeModels"></datalist><button class="ghost" data-load="claude">Load list</button></div></div>
+        <div class="field"><label>OpenAI model</label><div class="ctl"><input type="text" id="openaiModel" list="openaiModels" style="width:260px"><datalist id="openaiModels"></datalist><button class="ghost" data-load="openai">Load list</button></div></div>
+        <div class="field"><label>Claude API key</label><div class="ctl"><input type="password" id="claudeKey" placeholder="sk-ant-…" style="width:300px"><button data-savekey="claude">Save</button><button class="ghost danger" data-clearkey="claude">Remove</button><span id="claudeKeyState" class="ok"></span></div></div>
+        <div class="field"><label>Web search</label><div class="ctl"><label><input type="checkbox" id="webSearch"> Let Ask search the web (Claude only)</label></div></div>
+        <div class="field"><label>OpenAI API key</label><div class="ctl"><input type="password" id="openaiKey" placeholder="sk-…" style="width:300px"><button data-savekey="openai">Save</button><button class="ghost danger" data-clearkey="openai">Remove</button><span id="openaiKeyState" class="ok"></span></div></div>
+      </div>
+
+      <div class="card sect">
+        <h2>Capture</h2><p class="muted">Glint reads the text of the window you're using (via Accessibility) and groups it into work sessions.</p>
+        <div class="field"><label>Capture</label><div class="ctl"><label><input type="checkbox" id="capEnabled"> Capture my screen text</label></div></div>
+        <div class="field"><label>Open at login</label><div class="ctl"><label><input type="checkbox" id="openLogin"> Start Glint when I log in</label></div></div>
+        <div class="field"><label>Refresh text every</label><div class="ctl"><input type="number" id="capInterval" min="5" max="600" style="width:90px"> seconds while a window stays focused</div></div>
+        <div class="field"><label>End session after</label><div class="ctl"><input type="number" id="idleSec" min="30" max="3600" step="30" style="width:90px"> seconds without input</div></div>
+        <div class="field"><label>Window text from</label><div class="ctl"><label><input type="checkbox" id="allApps"> All apps</label><span class="muted">otherwise only these (others keep just the window title):</span><input type="text" id="textApps" placeholder="Safari, Notion, Slack" style="flex:1;min-width:200px"></div></div>
+        <div class="field"><label>OCR fallback</label><div class="ctl"><label><input type="checkbox" id="ocr"> Read the window with OCR when Accessibility text is thin (needs Screen Recording)</label></div></div>
+        <div class="field"><label>Summarize sessions</label><div class="ctl"><label><input type="checkbox" id="autoSum"> Title and summarize each session with AI when it ends</label></div></div>
+        <div class="field"><label>Never capture</label><div class="ctl" style="flex:1"><textarea id="blocked" rows="3" style="width:100%" placeholder="One app name per line"></textarea></div></div>
+        <div class="field"><label>Accessibility</label><div class="ctl"><span id="axState" class="muted"></span><button id="axBtn">Open permission prompt</button></div></div>
+        <div class="field"><label></label><div class="ctl"><button class="primary" id="saveCapture">Save capture settings</button></div></div>
+      </div>
+
+      <div class="card sect">
+        <h2>About you</h2><p class="muted">Included in every Ask answer. Ask can also edit these when you tell it something worth remembering.</p>
+        <div class="field"><label>Bio</label><div class="ctl" style="flex:1;flex-direction:column;align-items:stretch"><textarea id="bio" rows="4" maxlength="6000" style="width:100%" placeholder="e.g. Product manager at Acme, working on the billing redesign."></textarea><div style="display:flex;justify-content:space-between"><span class="muted" id="bioCount"></span><button id="saveBio">Save bio</button></div></div></div>
+        <div class="field"><label>Lasting memory</label><div class="ctl" style="flex:1;flex-direction:column;align-items:stretch"><textarea id="memDoc" class="doc" maxlength="12000"></textarea><div style="display:flex;justify-content:space-between"><span class="muted" id="memCount"></span><button id="saveMem">Save memory</button></div></div></div>
+      </div>
+
+      <div class="card sect">
+        <h2>Dictate</h2><p class="muted">Hold <code>Control</code> + <code>Option</code> in any app, speak, and release to insert. <code>Esc</code> cancels. Uses OpenAI Whisper when an OpenAI key is set, otherwise on-device recognition.</p>
+        <div class="field"><label>Dictate</label><div class="ctl"><label><input type="checkbox" id="dictOn"> Enabled</label><label><input type="checkbox" id="dictPolish"> Polish (remove fillers, fix punctuation, apply style)</label></div></div>
+        <div class="field"><label>Style by context</label><div class="ctl" id="dictStyles"></div></div>
+        <div class="field"><label>Dictionary</label><div class="ctl" style="flex:1;flex-direction:column;align-items:stretch">
+          <div id="dictList" class="chips" style="margin-bottom:8px"></div>
+          <div style="display:flex;gap:8px"><input type="text" id="dictValue" maxlength="60" placeholder="Word or name (e.g. Kubernetes)" style="flex:1"><input type="text" id="dictAlias" maxlength="80" placeholder="Sounds like (optional)" style="flex:1"><button id="dictAdd">Add</button></div>
+        </div></div>
+      </div>
+
+      <div class="card sect">
+        <h2>Appearance</h2><p class="muted">Applies to every Glint window.</p>
+        <div class="field"><label>Theme</label><div class="ctl"><div class="seg-ctl" id="themeSeg"><button data-t="system">System</button><button data-t="light">Light</button><button data-t="dark">Dark</button></div></div></div>
+        <div class="field"><label>Accent</label><div class="ctl"><div class="swatches" id="accents"></div></div></div>
+      </div>
+
+      <div class="card sect">
+        <h2>Privacy</h2><p class="muted">Control how long captures are kept.</p>
+        <div class="field"><label>Keep memory for</label><div class="ctl"><select id="retention"><option value="">Unlimited</option><option value="14">14 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="365">1 year</option></select></div></div>
+        <div class="field"><label>Site icons</label><div class="ctl"><label><input type="checkbox" id="siteIcons"> Show website icons (fetched once from each site you visited, then cached)</label></div></div>
+        <div class="field"><label>Browser history</label><div class="ctl"><button id="importBrowser">Import last 14 days</button><span class="muted">Chrome, Arc, Brave, Edge</span></div></div>
+        <div class="field"><label>Delete</label><div class="ctl"><button class="danger" id="purge">Delete all local memory</button></div></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="modal-bg" id="modal"><div class="card modal"><h3 id="mTitle"></h3><div class="muted" id="mBody"></div>
+  <div class="acts"><button id="mCancel">Cancel</button><button class="danger solid" id="mOk">Delete</button></div></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const TOKEN = "__GLINT_TOKEN__";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const PALETTE = ["#2f6f5e", "#c26a3d", "#4a6fb3", "#a8487a", "#7b8f2e", "#6a55b0", "#c49a2c", "#3f8f9a", "#b04b4b", "#5b6b7a"];
+const colorOf = (s) => { let h = 0; for (const c of s || "") h = (h * 31 + c.charCodeAt(0)) >>> 0; return PALETTE[h % PALETTE.length]; };
+const mins = (sec) => sec >= 3600 ? `${Math.floor(sec / 3600)}h ${Math.round((sec % 3600) / 60)}m` : `${Math.round(sec / 60)}m`;
+const clock = (ms) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+function when(ms) {
+  const d = new Date(ms), n = new Date(), t = clock(ms);
+  if (d.toDateString() === n.toDateString()) return t;
+  const y = new Date(n); y.setDate(n.getDate() - 1);
+  return d.toDateString() === y.toDateString() ? `Yesterday · ${t}` : `${d.toLocaleDateString([], { month: "short", day: "numeric" })} · ${t}`;
+}
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("on"), 2400); }
+async function api(path, body) {
+  const res = await fetch(path, { method: body ? "POST" : "GET", headers: { "X-Glint-Token": TOKEN, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `${res.status}`);
+  return data;
+}
+function confirmDialog(title, body, okLabel = "Delete") {
+  return new Promise((resolve) => {
+    $("mTitle").textContent = title; $("mBody").textContent = body; $("mOk").textContent = okLabel;
+    $("modal").classList.add("on");
+    const done = (v) => { $("modal").classList.remove("on"); $("mOk").onclick = $("mCancel").onclick = null; resolve(v); };
+    $("mOk").onclick = () => done(true); $("mCancel").onclick = () => done(false);
+  });
+}
+function md(text) {
+  const blocks = String(text || "").split(/```/);
+  return blocks.map((b, i) => {
+    if (i % 2) return `<pre><code>${esc(b.replace(/^\w*\n/, ""))}</code></pre>`;
+    const inline = (s) => esc(s)
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+      .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<i>$2</i>")
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    const out = []; let list = null;
+    for (const line of b.split("\n")) {
+      const li = line.match(/^\s*(?:[-*]|\d+\.)\s+(.*)$/);
+      if (li) { const tag = /^\s*\d/.test(line) ? "ol" : "ul"; if (!list) { list = tag; out.push(`<${tag}>`); } out.push(`<li>${inline(li[1])}</li>`); continue; }
+      if (list) { out.push(`</${list}>`); list = null; }
+      const h = line.match(/^#{1,4}\s+(.*)$/);
+      if (h) out.push(`<h4>${inline(h[1])}</h4>`);
+      else if (line.trim()) out.push(`<p>${inline(line)}</p>`);
+    }
+    if (list) out.push(`</${list}>`);
+    return out.join("");
+  }).join("");
+}
+
+/* ---------- appearance ---------- */
+const ACCENTS = { green: ["#2f6f5e", "#6cc3a6"], blue: ["#2f5fa8", "#7aa7ee"], purple: ["#6a4bb3", "#a98ff0"], pink: ["#b2457a", "#ef8fbd"],
+  orange: ["#b8622a", "#f0a36b"], teal: ["#1f7a85", "#63c8d2"], graphite: ["#4a4a4a", "#b5b5b5"] };
+function applyLook(s) {
+  const root = document.documentElement;
+  if (s.theme === "light" || s.theme === "dark") root.dataset.theme = s.theme; else delete root.dataset.theme;
+  const [light, dark] = ACCENTS[s.accent] || ACCENTS.green;
+  const isDark = s.theme === "dark" || (s.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+  root.style.setProperty("--accent", isDark ? dark : light);
+  root.style.setProperty("--accent-2", (isDark ? dark : light) + (isDark ? "26" : "1f"));
+}
+
+/* ---------- navigation ---------- */
+const views = ["today", "ask", "memory", "tasks", "insights", "settings"];
+const VIEW_HOOKS = {}, SETTINGS_HOOKS = [];
+function show(view) {
+  if (!views.includes(view)) view = "today";
+  document.querySelectorAll(".nav").forEach((n) => n.classList.toggle("on", n.dataset.view === view));
+  document.querySelectorAll(".view").forEach((v) => v.classList.toggle("on", v.id === `v-${view}`));
+  try { localStorage.setItem("hs.view", view); } catch {}
+  const fn = ({ today: loadToday, ask: loadThreads, memory: loadMemory, tasks: loadTasks, insights: loadInsights, settings: loadSettings })[view] || VIEW_HOOKS[view];
+  if (fn) fn();
+}
+document.querySelector(".side").addEventListener("click", (e) => { const n = e.target.closest(".nav"); if (n) show(n.dataset.view); });
+window.glintNavigate = (v) => show(v);
+
+/* ---------- capture status ---------- */
+let status = null;
+async function refreshStatus() {
+  try {
+    status = await api("/api/status");
+    const c = status.capture, paused = c.paused_until && c.paused_until > Date.now();
+    const state = !c.enabled ? "off" : paused ? "paused" : c.state;
+    const label = { capturing: "Capturing", paused: "Paused", off: "Capture off", idle: "Idle", skipped: "Skipping app", error: "Capture error", starting: "Starting…" }[state] || state;
+    $("capState").textContent = label;
+    $("capDot").className = "dot " + (state === "capturing" ? "live" : state === "paused" ? "paused" : "");
+    $("capWhat").textContent = state === "paused" ? `until ${clock(c.paused_until)}` : c.app ? `${c.app}${c.title ? " · " + c.title : ""}` : (c.note || "");
+    $("capPause").textContent = paused || !c.enabled ? "Resume" : "Pause";
+  } catch {}
+}
+$("capPause").onclick = async (e) => {
+  const c = status?.capture; const paused = c && (c.paused_until > Date.now() || !c.enabled);
+  if (!paused) { e.stopPropagation(); $("pauseMenu").classList.toggle("on"); return; }
+  await api("/api/capture", { pause_minutes: 0, enabled: true }); toast("Capture resumed"); refreshStatus();
+};
+$("pauseMenu").onclick = async (e) => {
+  const v = e.target.dataset.pause; if (!v) return;
+  $("pauseMenu").classList.remove("on");
+  await api("/api/capture", /^\d+$/.test(v) ? { pause_minutes: +v } : { pause: v });
+  toast(e.target.textContent); refreshStatus();
+};
+document.addEventListener("click", () => $("pauseMenu").classList.remove("on"));
+$("capNow").onclick = async () => { await api("/api/capture", { now: true, enabled: true }); toast("Capturing the current window"); setTimeout(refreshStatus, 1500); };
+setInterval(refreshStatus, 5000);
+
+/* ---------- today ---------- */
+let day = null;
+const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function shiftDay(n) { const d = day ? new Date(day + "T12:00") : new Date(); d.setDate(d.getDate() + n); day = isoDay(d); loadToday(); }
+$("dayPrev").onclick = () => shiftDay(-1); $("dayNext").onclick = () => shiftDay(1); $("dayToday").onclick = () => { day = null; loadToday(); };
+async function loadToday() {
+  const t = await api("/api/today" + (day ? `?date=${day}` : ""));
+  const d = new Date(t.date + "T12:00"), isToday = t.date === isoDay(new Date());
+  $("dayTitle").textContent = isToday ? "Today" : d.toLocaleDateString([], { weekday: "long" });
+  $("daySub").textContent = d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+  const s = status || await api("/api/status").catch(() => null);
+  const ban = [];
+  if (s && s.capture.ax_trusted === false) ban.push(`<div class="banner"><span>Glint needs Accessibility permission to read window text.</span><button onclick="window.webkit?.messageHandlers?.glint?.postMessage({action:'requestAccessibility'})">Grant access</button></div>`);
+  if (s && !s.keys.claude && !s.keys.openai) ban.push(`<div class="banner info"><span>Add a Claude or OpenAI key to get session summaries and Ask.</span><button onclick="show('settings')">Open Settings</button></div>`);
+  $("todayBanner").innerHTML = ban.join("");
+  $("tTracked").textContent = mins(t.tracked_seconds);
+  $("tSessions").textContent = t.sessions.length;
+  const scored = t.sessions.filter((x) => x.focus_score != null);
+  $("tFocus").textContent = scored.length ? Math.round(scored.reduce((a, x) => a + x.focus_score, 0) / scored.length) : "–";
+  $("tTop").textContent = t.app_totals[0]?.[0] || "–";
+  // timeline: span from first activity (or 8:00) to last (or 18:00)
+  const base = new Date(t.date + "T00:00").getTime();
+  const firstH = t.segments.length ? Math.min(8, new Date(t.segments[0].start).getHours()) : 8;
+  const lastH = t.segments.length ? Math.max(18, new Date(t.segments.at(-1).end).getHours() + 1) : 18;
+  const lo = base + firstH * 3600e3, span = (lastH - firstH) * 3600e3;
+  $("bar").innerHTML = t.segments.map((g) => `<div class="seg" title="${esc(g.app)} · ${clock(g.start)}–${clock(g.end)}" style="left:${((g.start - lo) / span) * 100}%;width:${((g.end - g.start) / span) * 100}%;background:${colorOf(g.app)}"></div>`).join("");
+  const hrs = []; for (let h = firstH; h <= lastH; h += Math.max(1, Math.round((lastH - firstH) / 8))) hrs.push(`<span>${h % 12 || 12}${h < 12 ? "a" : "p"}</span>`);
+  $("hours").innerHTML = hrs.join("");
+  $("legend").innerHTML = t.app_totals.slice(0, 8).map(([a]) => `<span><i style="background:${colorOf(a)}"></i>${esc(a)}</span>`).join("");
+  const max = t.app_totals[0]?.[1] || 1;
+  $("appTotals").innerHTML = t.app_totals.length ? t.app_totals.slice(0, 12).map(([a, sec]) => `<div class="approw"><span class="ell">${esc(a)}</span><span class="muted">${mins(sec)}</span><div class="track"><i style="width:${(sec / max) * 100}%;background:${colorOf(a)}"></i></div></div>`).join("") : '<div class="muted">Nothing tracked yet.</div>';
+  $("sessions").innerHTML = t.sessions.length ? t.sessions.map(sessionCard).join("") : `<div class="card empty">No work sessions ${isToday ? "yet today" : "on this day"}. Glint starts a session as soon as it captures activity.</div>`;
+}
+function sessionCard(s) {
+  const dur = Math.max(1, Math.round((s.ended_at - s.started_at) / 60000));
+  return `<div class="card sess" data-id="${esc(s.id)}">
+    <div class="sess-top"><div>
+      <h3>${esc(s.title || (s.active ? "Current session" : "Untitled session"))}</h3>
+      <div class="when">${clock(s.started_at)} – ${s.active ? "now" : clock(s.ended_at)} · ${dur} min · ${s.captures} captures</div>
+    </div>${s.focus_score != null ? `<div class="focus" style="--v:${s.focus_score}" data-v="${s.focus_score}" title="Focus score"></div>` : ""}</div>
+    <div class="chips" style="margin-top:10px">${s.state_name || s.state_tag ? `<span class="chip accent">${esc(s.state_name || s.state_tag)}</span>` : ""}${s.apps.slice(0, 5).map(([a, sec]) => `<span class="chip"><i class="dot" style="background:${colorOf(a)}"></i>${esc(a)} ${mins(sec)}</span>`).join("")}</div>
+    ${s.summary ? `<p>${esc(s.summary)}</p>` : ""}
+    ${s.quality ? `<div class="qbars" title="${esc(s.quality.rationale || "")}">${["focus", "depth", "consistency", "recovery"].map((k) => `<div class="qbar"><span>${k}<b>${s.quality[k]}</b></span><div class="track"><i style="width:${s.quality[k]}%"></i></div></div>`).join("")}</div>` : ""}
+    ${s.insights.length ? `<ul class="ins">${s.insights.map((i) => `<li><b>${esc(i.headline)}</b><span>${esc(i.implication)} — ${esc(i.justification || i.why || "")}</span></li>`).join("")}</ul>` : ""}
+    ${!s.active ? `<input type="text" class="note-in" data-note placeholder="Add a note to this session…" value="${esc(s.note || "")}">` : ""}
+    <div class="sess-acts">
+      ${!s.active ? `<button data-act="sum">${s.status === "summarized" ? "Re-summarize" : "Summarize"}</button>` : ""}
+      <button class="ghost" data-act="caps">Captures</button><button class="ghost" data-act="rename">Rename</button><button class="ghost danger" data-act="del">Delete</button>
+    </div><div class="caps-wrap"></div></div>`;
+}
+$("sessions").addEventListener("change", async (e) => {
+  if (!e.target.matches("[data-note]")) return;
+  await api("/api/session/note", { id: e.target.closest(".sess").dataset.id, note: e.target.value }); toast("Note saved");
+});
+$("sessions").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-act]"); if (!btn) return;
+  const card = btn.closest(".sess"), id = card.dataset.id;
+  if (btn.dataset.act === "sum") {
+    btn.disabled = true; btn.textContent = "Summarizing…";
+    try { await api("/api/session/summarize", { id }); loadToday(); } catch (err) { toast(err.message); btn.disabled = false; btn.textContent = "Summarize"; }
+  } else if (btn.dataset.act === "rename") {
+    const title = prompt("Session name", card.querySelector("h3").textContent); if (!title) return;
+    await api("/api/session/rename", { id, title }); loadToday();
+  } else if (btn.dataset.act === "del") {
+    if (!(await confirmDialog("Delete this session?", "Its captures are removed from memory too. This can't be undone."))) return;
+    await api("/api/session/delete", { id }); toast("Session deleted"); loadToday();
+  } else if (btn.dataset.act === "caps") {
+    const wrap = card.querySelector(".caps-wrap");
+    if (wrap.innerHTML) { wrap.innerHTML = ""; return; }
+    const d = await api(`/api/session?id=${encodeURIComponent(id)}`);
+    wrap.innerHTML = `<div class="caps">${d.timeline.map((c) => `<div><span class="muted">${clock(c.at)}</span><span class="ell">${esc(c.app)}</span><span class="ell">${esc(c.title)}</span></div>`).join("") || '<div class="muted">No captures.</div>'}</div>`;
+  }
+});
+
+/* ---------- ask ---------- */
+let threadId = null, asking = false;
+const SUGGESTIONS = ["What was I working on this morning?", "Summarize my day so far", "Find the last thing I read about pricing", "What tasks do I have open?"];
+async function loadThreads() {
+  const ts = await api("/api/threads");
+  $("threadList").innerHTML = ts.map((t) => `<div class="t ${t.id === threadId ? "on" : ""}" data-id="${esc(t.id)}"><span>${esc(t.title || "Chat")}</span><button title="Delete">✕</button></div>`).join("") || '<div class="muted" style="padding:8px 10px;font-size:13px">No chats yet</div>';
+  if (!threadId) renderEmptyChat();
+}
+function renderEmptyChat() {
+  $("msgInner").innerHTML = `<div style="padding-top:12vh"><h1 style="margin:0;font-size:24px">Ask your memory</h1>
+    <div class="muted">Glint searches what you've seen and done on this Mac, then answers.</div>
+    <div class="suggest">${SUGGESTIONS.map((s) => `<button class="card" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div></div>`;
+}
+$("msgInner").addEventListener("click", (e) => { const b = e.target.closest("button[data-q]"); if (b) { $("askInput").value = b.dataset.q; send(); } });
+$("threadList").addEventListener("dblclick", async (e) => {
+  const row = e.target.closest(".t"); if (!row) return;
+  const title = prompt("Rename chat", row.querySelector("span").textContent); if (!title) return;
+  await api("/api/thread/rename", { id: row.dataset.id, title }); loadThreads();
+});
+$("threadList").addEventListener("click", async (e) => {
+  const row = e.target.closest(".t"); if (!row) return;
+  if (e.target.tagName === "BUTTON") {
+    await api("/api/thread/delete", { id: row.dataset.id });
+    if (threadId === row.dataset.id) threadId = null;
+    return loadThreads();
+  }
+  threadId = row.dataset.id; loadThreads();
+  const t = await api(`/api/thread?id=${encodeURIComponent(threadId)}`);
+  $("msgInner").innerHTML = t.messages.map((m) => msgHtml(m.role, m.content, m.tools)).join("");
+  hydrateEvents($("msgInner"));
+  scrollChat();
+});
+$("newChat").onclick = () => { threadId = null; loadThreads(); $("askInput").focus(); };
+const TOOL_LABEL = { search_memory: (i) => `Searched memory: “${i.query}”`, get_recent_context: (i) => `Pulled up the last ${i.since_hours || 24}h`, get_today_activity: () => "Reviewed today", list_tasks: () => "Loaded tasks", create_task: (i) => `Created task: ${i.title}`, update_task: () => "Updated a task", read_user_bio: () => "Read your bio", update_user_bio: () => "Updated your bio", read_memory: () => "Checked memory", update_memory: () => "Saved to memory", revise_session: () => "Updated the session report", web_search: (i) => `Searched the web: “${i.query || ""}”` };
+const toolChip = (t) => `<span class="chip">${esc((TOOL_LABEL[t.name] || (() => t.name))(t.input || {}))}</span>`;
+function msgHtml(role, content, tools = []) {
+  const chips = tools.filter((t) => t.name), events = tools.filter((t) => t.event);
+  return `<div class="msg ${role}">${chips.length ? `<div class="toolchips">${chips.map(toolChip).join("")}</div>` : ""}${events.map((t) => `<div class="ev" data-ev="${esc(t.event)}" data-payload="${esc(JSON.stringify(t.payload))}"></div>`).join("")}<div class="bubble">${role === "user" ? esc(content) : md(content)}</div></div>`;
+}
+function hydrateEvents(root) {
+  root.querySelectorAll(".ev:not([data-done])").forEach((el) => {
+    el.dataset.done = "1";
+    const r = window.HS?.renderers[el.dataset.ev];
+    if (r) try { r(JSON.parse(el.dataset.payload), el); } catch (e) { console.error(e); }
+  });
+}
+function scrollChat() { $("msgs").scrollTop = $("msgs").scrollHeight; }
+async function send() {
+  const text = $("askInput").value.trim(); if (!text || asking) return;
+  asking = true; $("askSend").disabled = true; $("askInput").value = ""; autoGrow();
+  if (!threadId) $("msgInner").innerHTML = "";
+  $("msgInner").insertAdjacentHTML("beforeend", msgHtml("user", text));
+  $("msgInner").insertAdjacentHTML("beforeend", `<div class="msg assistant" id="live"><div class="toolchips"></div><div class="bubble typing"></div></div>`);
+  scrollChat();
+  const live = $("live"), bubble = live.querySelector(".bubble"), chips = live.querySelector(".toolchips");
+  let answer = "";
+  try {
+    const res = await fetch("/api/ask", { method: "POST", headers: { "X-Glint-Token": TOKEN, "Content-Type": "application/json" }, body: JSON.stringify({ thread_id: threadId, message: text }) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
+    const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n\n")) >= 0) {
+        const raw = buf.slice(0, i); buf = buf.slice(i + 2);
+        const ev = raw.match(/^event: (.*)$/m)?.[1], data = JSON.parse(raw.match(/^data: (.*)$/m)?.[1] || "{}");
+        if (ev === "thread") threadId = data.id;
+        else if (ev === "text") { answer += data.delta; bubble.innerHTML = md(answer); scrollChat(); }
+        else if (ev === "tool") { chips.insertAdjacentHTML("beforeend", toolChip(data)); scrollChat(); }
+        else if (ev === "notice") chips.insertAdjacentHTML("beforeend", `<span class="chip">${esc(data.message)}</span>`);
+        else if (ev === "done") { answer = data.answer || answer; bubble.innerHTML = md(answer); }
+        else if (ev === "error") bubble.innerHTML = `<span class="err">${esc(data.message)}</span>`;
+        else if (window.HS?.renderers[ev]) { const el = document.createElement("div"); el.className = "ev"; bubble.before(el); try { HS.renderers[ev](data, el); } catch (e) { console.error(e); } scrollChat(); }
+      }
+    }
+  } catch (err) { bubble.innerHTML = `<span class="err">${esc(err.message)}</span>`; }
+  bubble.classList.remove("typing"); live.removeAttribute("id");
+  asking = false; $("askSend").disabled = false; loadThreads(); scrollChat();
+}
+function autoGrow() { const a = $("askInput"); a.style.height = "auto"; a.style.height = Math.min(a.scrollHeight, 200) + "px"; }
+$("askInput").addEventListener("input", autoGrow);
+$("askInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
+$("askSend").onclick = send;
+
+/* ---------- memory: sessions + timeline ---------- */
+function appIcon(name, lg = false) {
+  return `<span class="aic${lg ? " lg" : ""}" style="background:${colorOf(name)}">${esc((name || "?")[0].toUpperCase())}<img src="/icon/app?name=${encodeURIComponent(name)}" alt="" onerror="this.remove()"></span>`;
+}
+function siteIcon(host, lg = false) {
+  return `<span class="aic${lg ? " lg" : ""}" style="background:${colorOf(host)}">${esc((host || "?").replace(/^www\./, "")[0].toUpperCase())}<img src="/icon/site?host=${encodeURIComponent(host)}" alt="" onerror="this.remove()"></span>`;
+}
+const siteName = (h) => h.replace(/^www\./, "");
+const durMin = (s) => Math.max(1, Math.round((s.ended_at - s.started_at) / 60000));
+let memTab = "sessions";
+const sstate = { list: [], active: null, seq: 0 };
+function loadMemory() { switchMemTab(memTab); }
+function switchMemTab(tab) {
+  memTab = tab;
+  document.querySelectorAll("#memTabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
+  ["sessions", "timeline", "captures"].forEach((t) => $(`tab-${t}`).hidden = t !== tab);
+  if (tab === "sessions") { loadFacets(); searchSessions(); }
+  else if (tab === "timeline") loadTimeline();
+  else { loadMemStats(); memSearch(); }
+}
+$("memTabs").onclick = (e) => { const t = e.target.dataset.tab; if (t) switchMemTab(t); };
+async function loadFacets() {
+  const f = await api("/api/sessions/facets");
+  const keep = (id, label, opts) => { const cur = $(id).value; $(id).innerHTML = `<option value="">${label}</option>` + opts; $(id).value = cur; };
+  keep("sapp", "All apps", f.apps.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join(""));
+  keep("sproj", "All projects", f.projects.map(([p, n]) => `<option value="${esc(p)}">${esc(p)} (${n})</option>`).join(""));
+}
+async function searchSessions() {
+  const seq = ++sstate.seq, p = new URLSearchParams({ limit: 150 });
+  if ($("sq").value.trim()) p.set("query", $("sq").value.trim());
+  for (const [id, k] of [["sdays", "days"], ["sapp", "app"], ["sproj", "project"]]) if ($(id).value) p.set(k, $(id).value);
+  const r = await api("/api/sessions/search?" + p);
+  if (seq !== sstate.seq) return;
+  sstate.list = r.sessions;
+  $("scount").textContent = `${r.total} session${r.total === 1 ? "" : "s"}`;
+  if (!r.sessions.some((s) => s.id === sstate.active)) sstate.active = r.sessions[0]?.id ?? null;
+  renderSessionList();
+  if (sstate.active) openSession(sstate.active); else $("sdetail").innerHTML = '<div class="empty">No sessions match.</div>';
+}
+function dayLabel(ms) {
+  const d = new Date(ms), n = new Date(), y = new Date(n); y.setDate(n.getDate() - 1);
+  if (d.toDateString() === n.toDateString()) return "Today";
+  if (d.toDateString() === y.toDateString()) return "Yesterday";
+  return d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
+}
+function renderSessionList() {
+  if (!sstate.list.length) { $("slist").innerHTML = `<div class="card empty">${$("sq").value.trim() ? "No matching sessions." : "No sessions yet. Glint starts one as soon as it captures activity."}</div>`; return; }
+  let html = "", day = "";
+  for (const s of sstate.list) {
+    const d = dayLabel(s.started_at);
+    if (d !== day) { html += (day ? "</div>" : "") + `<div class="sday">${esc(d)}</div><div class="sgroup">`; day = d; }
+    const icons = s.apps.slice(0, 4).map(([a]) => appIcon(a)).join("") + s.hosts.slice(0, 2).map(([h]) => siteIcon(h)).join("");
+    html += `<div class="srow ${s.id === sstate.active ? "on" : ""}" data-id="${esc(s.id)}">
+      <div class="t">${esc(s.title || (s.active ? "Current session" : "Untitled session"))}</div><div class="tm">${clock(s.started_at)}</div>
+      <div class="sub">${icons}<span class="s">${esc(s.summary || (s.active ? "In progress…" : s.apps.map(([a]) => a).slice(0, 3).join(", ")))}</span></div><div class="dur">${durMin(s)} min</div></div>`;
+  }
+  $("slist").innerHTML = html + "</div>";
+}
+$("slist").onclick = (e) => { const r = e.target.closest(".srow"); if (r) { sstate.active = r.dataset.id; renderSessionList(); openSession(r.dataset.id); } };
+async function openSession(id) {
+  const s = await api(`/api/session?id=${encodeURIComponent(id)}`);
+  const when = new Date(s.started_at);
+  const apps = s.apps.map(([a, sec]) => `<span class="sitechip">${appIcon(a, true)}${esc(a)}<span class="muted">${mins(sec)}</span></span>`).join("");
+  const sites = s.hosts.map(([h, n]) => `<span class="sitechip">${siteIcon(h, true)}${esc(siteName(h))}<span class="muted">${n}×</span></span>`).join("");
+  $("sdetail").innerHTML = `
+    <h2><span id="sTitle">${esc(s.title || (s.active ? "Current session" : "Untitled session"))}</span><button class="ghost" id="sEdit" title="Rename">✎</button></h2>
+    <div class="meta">${esc(dayLabel(s.started_at))} at ${clock(s.started_at)} · ${durMin(s)} min${s.project ? ` · <a href="#" id="sProjLink">${esc(s.project)}</a>` : ""} · <a href="#" id="sProjEdit">${s.project ? "change project" : "set project"}</a></div>
+    ${s.summary ? `<p style="margin:0">${esc(s.summary)}</p>` : `<p class="muted" style="margin:0">${s.active ? "This session is still going. It gets a summary when it ends." : "No summary yet."} ${!s.active ? '<button id="sSum" style="margin-left:6px">Summarize</button>' : ""}</p>`}
+    ${s.quality ? `<div class="qbars" title="${esc(s.quality.rationale || "")}">${["focus", "depth", "consistency", "recovery"].map((k) => `<div class="qbar"><span>${k}<b>${s.quality[k]}</b></span><div class="track"><i style="width:${s.quality[k]}%"></i></div></div>`).join("")}</div>` : ""}
+    ${s.insights.length ? `<h4>Insights</h4><ul class="ins" style="margin-top:0">${s.insights.map((i) => `<li><b>${esc(i.headline)}</b><span>${esc(i.implication)} — ${esc(i.justification || i.why || "")}</span></li>`).join("")}</ul>` : ""}
+    <h4>Apps and sites</h4><div class="sitechips">${apps}${sites}</div>
+    ${s.related.length ? `<h4>More ${s.project ? "in " + esc(s.project) : "like this"}</h4>${s.related.map((r) => `<div class="rel" data-id="${esc(r.id)}"><span>${esc(r.title || "Untitled session")}</span><span class="muted">${esc(dayLabel(r.started_at))}</span></div>`).join("")}` : ""}
+    <div class="askbox"><input id="sAsk" placeholder="Ask about this session"><button class="primary" id="sAskGo">Ask</button></div>
+    <div style="display:flex;justify-content:space-between;margin-top:14px"><button class="ghost" id="sCaps">${s.captures} captures</button><button class="ghost danger" id="sDel">Delete session</button></div>
+    <div id="sCapList"></div>`;
+  $("sEdit").onclick = async () => { const t = prompt("Session name", $("sTitle").textContent); if (!t) return; await api("/api/session/rename", { id, title: t }); searchSessions(); };
+  $("sProjEdit").onclick = async (e) => { e.preventDefault(); const p = prompt("Project for this session (empty to clear)", s.project || ""); if (p === null) return; await api("/api/session/project", { id, project: p }); loadFacets(); openSession(id); };
+  if ($("sProjLink")) $("sProjLink").onclick = (e) => { e.preventDefault(); $("sproj").value = s.project; searchSessions(); };
+  if ($("sSum")) $("sSum").onclick = async (e) => { e.target.disabled = true; e.target.textContent = "Summarizing…"; try { await api("/api/session/summarize", { id }); searchSessions(); } catch (err) { toast(err.message); e.target.disabled = false; e.target.textContent = "Summarize"; } };
+  $("sdetail").querySelectorAll(".rel").forEach((r) => r.onclick = () => { sstate.active = r.dataset.id; renderSessionList(); openSession(r.dataset.id); });
+  const ask = () => { const q = $("sAsk").value.trim(); if (!q) return; askAbout(`About my work session "${s.title || "untitled"}" (${when.toLocaleString()}, id ${s.id.slice(0, 8)}): ${q}`); };
+  $("sAskGo").onclick = ask; $("sAsk").onkeydown = (e) => e.key === "Enter" && ask();
+  $("sDel").onclick = async () => { if (!(await confirmDialog("Delete this session?", "Its captures are removed from memory too. This can't be undone."))) return; await api("/api/session/delete", { id }); toast("Session deleted"); searchSessions(); };
+  $("sCaps").onclick = () => { const w = $("sCapList"); if (w.innerHTML) { w.innerHTML = ""; return; } w.innerHTML = `<div class="caps">${s.timeline.map((c) => `<div><span class="muted">${clock(c.at)}</span><span class="ell">${esc(c.app)}</span><span class="ell">${esc(c.title)}</span></div>`).join("") || '<div class="muted">No captures.</div>'}</div>`; };
+}
+function askAbout(text) { threadId = null; show("ask"); $("askInput").value = text; send(); }
+let st; $("sq").addEventListener("input", () => { clearTimeout(st); st = setTimeout(searchSessions, 250); });
+["sdays", "sapp", "sproj"].forEach((id) => $(id).onchange = searchSessions);
+
+let tlDate = null, tlItems = [];
+async function loadTimeline() {
+  const t = await api("/api/timeline" + (tlDate ? `?date=${tlDate}` : ""));
+  tlItems = t.items;
+  const d = new Date(t.date + "T12:00");
+  $("tlDay").textContent = t.date === isoDay(new Date()) ? "Today" : d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+  renderTimeline();
+}
+function renderTimeline() {
+  const f = $("tlq").value.trim().toLowerCase();
+  const items = tlItems.filter((i) => !f || `${i.app} ${i.title} ${i.host || ""}`.toLowerCase().includes(f));
+  if (!items.length) { $("tlList").innerHTML = '<div class="empty">Nothing captured on this day.</div>'; $("tlPrev2").innerHTML = ""; return; }
+  let html = "", hour = -1;
+  for (const i of items) {
+    const h = new Date(i.start).getHours();
+    if (h !== hour) { html += `<div class="tlhour">${new Date(i.start).toLocaleTimeString([], { hour: "numeric" })}</div>`; hour = h; }
+    const m = Math.max(0, Math.round((i.end - i.start) / 60000));
+    html += `<div class="tlrow" data-id="${esc(i.chunk_id)}"><span class="muted">${clock(i.start)}</span>${i.host ? siteIcon(i.host) : appIcon(i.app)}<span class="ell"><b>${esc(i.app)}</b> · ${esc(i.title || (i.host ? siteName(i.host) : ""))}</span><span class="muted">${m ? m + "m" : ""}</span></div>`;
+  }
+  $("tlList").innerHTML = html;
+  $("tlPrev2").innerHTML = '<div class="empty">Select an entry to see what was on screen.</div>';
+}
+$("tlList").onclick = async (e) => {
+  const r = e.target.closest(".tlrow"); if (!r) return;
+  $("tlList").querySelectorAll(".tlrow").forEach((x) => x.classList.toggle("on", x === r));
+  const c = await api(`/api/capture/text?id=${encodeURIComponent(r.dataset.id)}`);
+  $("tlPrev2").innerHTML = `<div class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.06em">${esc(c.app)}</div><h3 style="margin:4px 0 6px">${esc(c.title || "(untitled)")}</h3>
+    <div class="chips"><span class="chip">${when(c.at)}</span><span class="chip">${esc(c.source)}</span>${c.host ? `<span class="chip">${esc(c.host)}</span>` : ""}</div><div class="mtext">${esc(c.text)}</div>`;
+};
+$("tlq").addEventListener("input", renderTimeline);
+const shiftTl = (n) => { const d = tlDate ? new Date(tlDate + "T12:00") : new Date(); d.setDate(d.getDate() + n); tlDate = isoDay(d); loadTimeline(); };
+$("tlPrev").onclick = () => shiftTl(-1); $("tlNext").onclick = () => shiftTl(1);
+
+/* ---------- memory ---------- */
+const mstate = { hits: [], terms: [], active: null, sel: new Set(), seq: 0 };
+function hl(text) {
+  const safe = esc(text); if (!mstate.terms.length) return safe;
+  const re = new RegExp(mstate.terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "gi");
+  return safe.replace(re, (m) => `<mark>${m}</mark>`);
+}
+async function loadMemStats() {
+  const s = await api("/api/stats");
+  $("memStats").innerHTML = `<span class="chip">${s.chunk_count.toLocaleString()} captures</span><span class="chip">${s.embedded}/${s.passages} embedded</span><span class="chip">${(s.db_bytes / 1e6).toFixed(1)} MB</span>`;
+  const cur = $("mapp").value;
+  $("mapp").innerHTML = '<option value="">All apps</option>' + s.apps.map(([a, n]) => `<option value="${esc(a)}">${esc(a)} (${n})</option>`).join("");
+  $("mapp").value = cur;
+}
+async function memSearch() {
+  const seq = ++mstate.seq, p = new URLSearchParams({ limit: 48, mode: $("mmode").value });
+  if ($("mq").value.trim()) p.set("query", $("mq").value.trim());
+  if ($("msince").value) p.set("sinceHours", $("msince").value);
+  if ($("mapp").value) p.set("appId", $("mapp").value);
+  const r = await api("/api/search?" + p).catch((e) => ({ hits: [], notes: [e.message] }));
+  if (seq !== mstate.seq) return;
+  mstate.hits = r.hits; mstate.terms = r.terms || []; $("mnote").textContent = (r.notes || []).join(" ");
+  mstate.sel = new Set([...mstate.sel].filter((id) => r.hits.some((h) => h.chunkId === id)));
+  if (!r.hits.some((h) => h.chunkId === mstate.active)) mstate.active = r.hits[0]?.chunkId ?? null;
+  renderMem();
+}
+function renderMem() {
+  const hits = mstate.hits;
+  $("mcount").textContent = `${hits.length} capture${hits.length === 1 ? "" : "s"}`;
+  $("mall").checked = hits.length > 0 && hits.every((h) => mstate.sel.has(h.chunkId));
+  $("mdelSel").disabled = !mstate.sel.size; $("mdelSel").textContent = mstate.sel.size ? `Remove ${mstate.sel.size} selected` : "Remove selected";
+  $("mlist").innerHTML = hits.length ? hits.map((h) => `<div class="mrow ${h.chunkId === mstate.active ? "on" : ""}" data-id="${esc(h.chunkId)}">
+    <input type="checkbox" ${mstate.sel.has(h.chunkId) ? "checked" : ""}><div class="ico" style="background:${colorOf(h.appId)}">${esc((h.appId || "?")[0].toUpperCase())}</div>
+    <div style="min-width:0"><div class="ell"><b>${hl(h.windowTitle || "(untitled)")}</b></div><div class="ell muted" style="font-size:12px">${esc(h.appId)}${h.urlHost ? " · " + esc(h.urlHost) : ""}</div></div>
+    <div class="muted" style="font-size:12px;white-space:nowrap">${when(h.capturedAt)}</div></div>`).join("") : `<div class="empty">${$("mq").value.trim() ? "No matches." : "Nothing captured yet."}</div>`;
+  const h = hits.find((x) => x.chunkId === mstate.active);
+  $("mprev").innerHTML = h ? `<div class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.06em">${esc(h.appId)}</div>
+    <h3 style="margin:4px 0 10px">${hl(h.windowTitle || "(untitled)")}</h3>
+    <div class="chips"><span class="chip">${esc(h.titleOnly ? "title" : h.source)}</span><span class="chip">${when(h.capturedAt)}</span><span class="chip">${(h.charCount || 0).toLocaleString()} chars</span>${h.score ? `<span class="chip accent">score ${h.score.toFixed(4)}</span>` : ""}${Object.entries(h.signals || {}).map(([k, v]) => `<span class="chip">${esc(k)} #${v.rank}</span>`).join("")}</div>
+    ${h.urlHost ? `<div style="color:var(--accent);margin-top:8px">${esc(h.urlHost)}</div>` : ""}
+    <div class="mtext">${hl(h.textPreview)}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="danger" id="mdelOne">Remove this capture</button></div>` : '<div class="empty">Select a capture to preview it.</div>';
+  const one = $("mdelOne"); if (one) one.onclick = () => memDelete([h.chunkId]);
+}
+async function memDelete(ids) {
+  if (!(await confirmDialog(`Remove ${ids.length} capture${ids.length === 1 ? "" : "s"}?`, "This deletes them from this Mac. Ask won't be able to recall them."))) return;
+  const r = await api("/api/delete", { chunkIds: ids }); mstate.sel.clear(); toast(`Removed ${r.deleted}`); loadMemStats(); memSearch();
+}
+$("mlist").addEventListener("click", (e) => {
+  const row = e.target.closest(".mrow"); if (!row) return;
+  if (e.target.type === "checkbox") e.target.checked ? mstate.sel.add(row.dataset.id) : mstate.sel.delete(row.dataset.id);
+  else mstate.active = row.dataset.id;
+  renderMem();
+});
+$("mall").onchange = (e) => { mstate.hits.forEach((h) => e.target.checked ? mstate.sel.add(h.chunkId) : mstate.sel.delete(h.chunkId)); renderMem(); };
+$("mdelSel").onclick = () => memDelete([...mstate.sel]);
+let mt; $("mq").addEventListener("input", () => { clearTimeout(mt); mt = setTimeout(memSearch, 220); });
+["msince", "mapp", "mmode"].forEach((id) => $(id).onchange = memSearch);
+
+/* ---------- insights ---------- */
+async function loadInsights() {
+  const ss = await api("/api/sessions?limit=300");
+  const items = [];
+  for (const s of ss) for (const i of s.insights) items.push({ ...i, s });
+  if (!items.length) { $("feed").innerHTML = '<div class="card empty">No insights yet. They appear after work sessions are summarized (add an API key in Settings).</div>'; return; }
+  let lastDay = "", html = "";
+  for (const it of items) {
+    const d = new Date(it.s.started_at).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
+    if (d !== lastDay) { html += `<div class="feed-day">${esc(d)}</div>`; lastDay = d; }
+    html += `<div class="card feed-item"><b>${esc(it.headline)}</b><div>${esc(it.implication)}</div>
+      <div class="src">${esc(it.justification || it.why || "")}</div>
+      <div class="chips" style="margin-top:8px"><span class="chip accent">${esc(it.s.state_name || it.s.state_tag || "Session")}</span><span class="chip">${esc(it.s.title || "Session")} · ${clock(it.s.started_at)}</span>${(it.entity_app_ids || []).map((a) => `<span class="chip">${esc(a)}</span>`).join("")}</div></div>`;
+  }
+  $("feed").innerHTML = html;
+}
+
+/* ---------- tasks ---------- */
+async function loadTasks() {
+  const ts = await api("/api/tasks");
+  $("taskList").innerHTML = ts.length ? ts.map((t) => `<div class="task ${t.progress >= 100 ? "done" : ""}" data-id="${esc(t.id)}">
+    <input type="checkbox" ${t.progress >= 100 ? "checked" : ""}><div><div class="tt">${esc(t.title)} <span class="muted" style="font-size:12px">${t.progress}%</span></div>
+      <div class="prog"><i style="width:${t.progress}%"></i></div>
+      ${t.logs.length ? `<div class="notes">${t.logs.slice(-3).map((l) => `${when(l.at)} — ${esc(l.text)}`).join("\n")}</div>` : ""}
+      <div style="display:flex;gap:8px;margin-top:6px;align-items:center"><input type="range" min="0" max="100" step="5" value="${t.progress}" data-prog><input type="text" placeholder="Log progress…" data-log style="flex:1;padding:4px 8px;font-size:12.5px"></div></div>
+    <button class="ghost danger" data-del>✕</button></div>`).join("") : '<div class="empty">No tasks. Add one above, or ask: “add a task to follow up with Sam”.</div>';
+}
+$("taskList").addEventListener("click", async (e) => {
+  const row = e.target.closest(".task"); if (!row) return;
+  if (e.target.matches("[data-del]")) { await api("/api/task/delete", { id: row.dataset.id }); return loadTasks(); }
+  if (e.target.type === "checkbox") { await api("/api/task/update", { id: row.dataset.id, progress: e.target.checked ? 100 : 0 }); loadTasks(); }
+});
+$("taskList").addEventListener("change", async (e) => {
+  const row = e.target.closest(".task"); if (!row) return;
+  if (e.target.matches("[data-prog]")) { await api("/api/task/update", { id: row.dataset.id, progress: +e.target.value }); loadTasks(); }
+  if (e.target.matches("[data-log]") && e.target.value.trim()) { await api("/api/task/update", { id: row.dataset.id, log: e.target.value.trim() }); loadTasks(); }
+});
+async function addTask() { const t = $("taskTitle").value.trim(); if (!t) return; await api("/api/tasks", { title: t }); $("taskTitle").value = ""; loadTasks(); }
+$("taskAdd").onclick = addTask; $("taskTitle").addEventListener("keydown", (e) => e.key === "Enter" && addTask());
+
+/* ---------- settings ---------- */
+let settings = null;
+async function loadSettings() {
+  const r = await api("/api/settings"); settings = r.settings;
+  document.querySelectorAll("#provSeg button").forEach((b) => b.classList.toggle("on", b.dataset.p === settings.provider));
+  $("claudeModel").value = settings.claude_model; $("openaiModel").value = settings.openai_model;
+  $("claudeKeyState").textContent = r.keys.claude ? "✓ saved" : ""; $("openaiKeyState").textContent = r.keys.openai ? "✓ saved" : "";
+  $("capEnabled").checked = settings.capture_enabled; $("capInterval").value = settings.capture_interval_s; $("idleSec").value = settings.idle_seconds;
+  $("allApps").checked = settings.capture_text_all_apps; $("textApps").value = settings.text_apps.join(", "); $("webSearch").checked = settings.web_search;
+  document.querySelectorAll("#themeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.t === settings.theme));
+  $("accents").innerHTML = Object.entries(ACCENTS).map(([k, v]) => `<button data-accent="${k}" title="${k}" style="background:${v[0]}" class="${k === settings.accent ? "on" : ""}"></button>`).join("");
+  $("ocr").checked = settings.ocr_fallback; $("autoSum").checked = settings.summarize_sessions; $("blocked").value = settings.blocked_apps.join("\n");
+  $("retention").value = settings.retention_days ?? "";
+  const ax = status?.capture?.ax_trusted; $("axState").textContent = ax === true ? "✓ Granted" : ax === false ? "Not granted" : "Unknown until the next capture";
+  $("openLogin").checked = settings.open_at_login; $("siteIcons").checked = settings.site_icons;
+  $("dictOn").checked = settings.dictation_enabled; $("dictPolish").checked = settings.dictation_polish;
+  const STYLES = { very_casual: "Very casual", casual: "Casual", formal: "Formal", excited: "Excited" };
+  $("dictStyles").innerHTML = ["personal", "work", "email", "other"].map((c) => `<label style="display:flex;gap:6px;align-items:center">${c[0].toUpperCase() + c.slice(1)}
+    <select data-style="${c}">${Object.entries(STYLES).filter(([k]) => !(c === "personal" && k === "excited")).map(([k, v]) => `<option value="${k}" ${settings.dictation_styles[c] === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>`).join("");
+  renderDict((await api("/api/dictionary")).items);
+  const p = await api("/api/profile"); $("bio").value = p.bio || ""; $("memDoc").value = p.memory || p.skeleton;
+  countDocs();
+  for (const h of SETTINGS_HOOKS) { try { await h(settings); } catch (e) { console.error(e); } }
+}
+document.querySelectorAll("#provSeg button").forEach((b) => b.onclick = async () => { await api("/api/settings", { provider: b.dataset.p }); toast(`Using ${b.textContent}`); loadSettings(); });
+["claudeModel", "openaiModel"].forEach((id) => $(id).onchange = async () => { await api("/api/settings", { [id === "claudeModel" ? "claude_model" : "openai_model"]: $(id).value.trim() }); toast("Model saved"); });
+document.querySelectorAll("[data-load]").forEach((b) => b.onclick = async () => {
+  try { const r = await api(`/api/models?provider=${b.dataset.load}`); $(`${b.dataset.load}Models`).innerHTML = r.models.map((m) => `<option value="${esc(m)}">`).join(""); toast(`${r.models.length} models loaded`); }
+  catch (e) { toast(e.message); }
+});
+document.querySelectorAll("[data-savekey]").forEach((b) => b.onclick = async () => {
+  const p = b.dataset.savekey, v = $(`${p}Key`).value.trim(); if (!v) return toast("Paste a key first");
+  try { await api("/api/keys", { [p]: v }); $(`${p}Key`).value = ""; toast("Key saved to Keychain"); loadSettings(); refreshStatus(); } catch (e) { toast(e.message); }
+});
+document.querySelectorAll("[data-clearkey]").forEach((b) => b.onclick = async () => { await api("/api/keys", { [b.dataset.clearkey]: "" }); toast("Key removed"); loadSettings(); });
+$("saveCapture").onclick = async () => {
+  await api("/api/settings", { capture_enabled: $("capEnabled").checked, capture_interval_s: +$("capInterval").value,
+    ocr_fallback: $("ocr").checked, summarize_sessions: $("autoSum").checked, blocked_apps: $("blocked").value.split("\n").map((s) => s.trim()).filter(Boolean),
+    idle_seconds: +$("idleSec").value, capture_text_all_apps: $("allApps").checked, text_apps: $("textApps").value.split(",").map((s) => s.trim()).filter(Boolean) });
+  toast("Capture settings saved"); refreshStatus();
+};
+$("axBtn").onclick = () => window.webkit?.messageHandlers?.glint?.postMessage({ action: "requestAccessibility" });
+function renderDict(items) {
+  $("dictList").innerHTML = items.map((e) => `<span class="chip">${esc(e.value)}${e.alias ? ` <span style="opacity:.7">← ${esc(e.alias)}</span>` : ""}${e.source === "auto" ? " · learned" : ""}<button class="ghost" data-dict="${e.id}" style="padding:0 2px">✕</button></span>`).join("") || '<span class="muted">No words yet.</span>';
+}
+$("dictOn").onchange = $("dictPolish").onchange = async () => { await api("/api/settings", { dictation_enabled: $("dictOn").checked, dictation_polish: $("dictPolish").checked }); toast("Dictate settings saved"); };
+$("dictStyles").onchange = async (e) => { const c = e.target.dataset.style; if (!c) return; await api("/api/settings", { dictation_styles: { ...settings.dictation_styles, [c]: e.target.value } }); settings.dictation_styles[c] = e.target.value; toast("Style saved"); };
+$("dictAdd").onclick = async () => { try { renderDict((await api("/api/dictionary", { value: $("dictValue").value, alias: $("dictAlias").value })).items); $("dictValue").value = $("dictAlias").value = ""; } catch (e) { toast(e.message); } };
+$("dictList").onclick = async (e) => { const id = e.target.dataset.dict; if (id) renderDict((await api("/api/dictionary/delete", { id })).items); };
+function countDocs() { $("bioCount").textContent = `${$("bio").value.length}/6000`; $("memCount").textContent = `${$("memDoc").value.length}/12000`; }
+$("bio").oninput = $("memDoc").oninput = countDocs;
+$("saveBio").onclick = async () => { await api("/api/bio", { bio: $("bio").value }); toast("Bio saved"); };
+$("saveMem").onclick = async () => { await api("/api/memory", { memory: $("memDoc").value }); toast("Memory saved"); };
+$("siteIcons").onchange = async (e) => { await api("/api/settings", { site_icons: e.target.checked }); toast("Saved"); };
+$("openLogin").onchange = async (e) => { await api("/api/settings", { open_at_login: e.target.checked }); toast(e.target.checked ? "Glint will open at login" : "Won't open at login"); };
+$("webSearch").onchange = async (e) => { await api("/api/settings", { web_search: e.target.checked }); toast("Saved"); };
+document.querySelectorAll("#themeSeg button").forEach((b) => b.onclick = async () => { await api("/api/settings", { theme: b.dataset.t }); applyLook({ ...settings, theme: b.dataset.t }); loadSettings(); });
+$("accents").onclick = async (e) => { const a = e.target.dataset.accent; if (!a) return; await api("/api/settings", { accent: a }); applyLook({ ...settings, accent: a }); loadSettings(); };
+$("retention").onchange = async (e) => { const r = await api("/api/retention", { days: e.target.value ? +e.target.value : null }); toast(r.removed ? `Saved · removed ${r.removed} old captures` : "Retention saved"); };
+$("importBrowser").onclick = async (e) => { e.target.disabled = true; try { const r = await api("/api/import/browser", { days: 14 }); toast(`Imported ${r.imported} pages`); } catch (err) { toast(err.message); } e.target.disabled = false; };
+$("purge").onclick = async () => { if (await confirmDialog("Delete all local memory?", "Every capture, passage and vector on this Mac is removed. Sessions and chats stay.")) { const r = await api("/api/purge", {}); toast(`Deleted ${r.deleted} captures`); } };
+
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("modal").classList.remove("on"); });
+let start = "today"; try { start = localStorage.getItem("hs.view") || "today"; } catch {}
+/* ---------- plug-in API for web/features/*.js ---------- */
+window.HS = {
+  api, esc, md, toast, confirmDialog, colorOf, when, clock, mins, show,
+  get settings() { return settings; }, get status() { return status; },
+  toolLabels: TOOL_LABEL,   // add { tool_name: (input) => "chip label" }
+  renderers: {},            // { eventKind: (payload, element) => void } for custom Ask stream events
+  registerView({ id, label, icon = "", html = "", onShow }) {
+    if (views.includes(id)) return;
+    views.push(id);
+    if (onShow) VIEW_HOOKS[id] = onShow;
+    const nav = document.createElement("div");
+    nav.className = "nav"; nav.dataset.view = id;
+    nav.innerHTML = `${icon}<span>${esc(label)}</span>`;
+    document.querySelector('.nav[data-view="settings"]').before(nav);
+    const sec = document.createElement("section");
+    sec.className = "view"; sec.id = `v-${id}`; sec.innerHTML = html;
+    document.querySelector("main").appendChild(sec);
+    return sec;
+  },
+  registerSettings({ id, title, description = "", html = "", onLoad }) {
+    const card = document.createElement("div");
+    card.className = "card sect"; card.id = `set-${id}`;
+    card.innerHTML = `<h2>${esc(title)}</h2>${description ? `<p class="muted">${esc(description)}</p>` : ""}${html}`;
+    [...document.querySelectorAll("#v-settings .sect")].find((c) => c.querySelector("h2")?.textContent === "Appearance").before(card);
+    if (onLoad) SETTINGS_HOOKS.push(onLoad);
+    return card;
+  },
+};
+api("/api/settings").then((r) => { settings = r.settings; applyLook(settings); }).catch(() => {});
+window.addEventListener("load", () => refreshStatus().then(() => show(start)));
+</script>
+<!--FEATURE_TAGS-->
+</body>
+</html>

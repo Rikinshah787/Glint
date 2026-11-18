@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assist</title>
+<style>
+:root { --panel: rgba(255,255,255,.94); --line: rgba(0,0,0,.09); --text: #1d1b18; --muted: #75716a; --faint: #a39f97;
+  --accent: #2f6f5e; --accent-2: rgba(47,111,94,.12); --chip: rgba(0,0,0,.05); --danger: #c0392b; }
+@media (prefers-color-scheme: dark) {
+  :root { --panel: rgba(32,31,28,.94); --line: rgba(255,255,255,.1); --text: #ecebe7; --muted: #a29e95; --faint: #6f6b63;
+    --accent: #6cc3a6; --accent-2: rgba(108,195,166,.15); --chip: rgba(255,255,255,.07); --danger: #ff7a6b; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: transparent; overflow: hidden; }
+body { font: 13.5px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; color: var(--text); padding: 6px; }
+button, input, textarea { font: inherit; color: inherit; }
+.wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;
+  -webkit-backdrop-filter: blur(30px) saturate(1.4); backdrop-filter: blur(30px) saturate(1.4); }
+.bar { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.bar .logo { width: 18px; height: 18px; border-radius: 6px; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 11px; flex: none; }
+.bar .grow { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.x { border: 0; background: none; color: var(--faint); cursor: pointer; padding: 0 2px; font-size: 15px; line-height: 1; }
+.x:hover { color: var(--text); }
+.body { padding: 10px 12px; }
+textarea.draft { width: 100%; border: 0; outline: none; resize: none; background: transparent; min-height: 44px; max-height: 360px; line-height: 1.5; }
+.status { color: var(--muted); padding: 4px 0; }
+.status.err { color: var(--danger); }
+.dots::after { content: "…"; animation: dots 1.2s steps(4) infinite; display: inline-block; width: 1em; overflow: hidden; vertical-align: bottom; }
+@keyframes dots { 0% { width: 0; } 100% { width: 1em; } }
+.acts { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 10px; border-top: 1px solid var(--line); align-items: center; }
+.btn { border: 1px solid var(--line); background: transparent; border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 12.5px; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.steer { flex: 1 1 100%; display: flex; gap: 6px; margin-top: 2px; }
+.steer input { flex: 1; border: 1px solid var(--line); background: transparent; border-radius: 8px; padding: 5px 9px; outline: none; }
+.steer input:focus { border-color: var(--accent); }
+kbd { font: 10.5px ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; color: var(--muted); }
+.hint { color: var(--faint); font-size: 11.5px; margin-left: auto; }
+.kind { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); font-weight: 600; }
+h3 { margin: 2px 0 4px; font-size: 14.5px; letter-spacing: -.01em; }
+.card-body { color: var(--muted); }
+.preview { margin-top: 8px; padding: 8px 10px; border-radius: 9px; background: var(--chip); white-space: pre-wrap; max-height: 140px; overflow: auto; font-size: 12.5px; }
+.result { padding: 8px 12px; border-top: 1px solid var(--line); display: none; align-items: center; gap: 8px; font-size: 12.5px; }
+.result.on { display: flex; }
+.result button { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; font-weight: 600; }
+/* edge */
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px 12px; }
+.qa { text-align: left; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: transparent; cursor: pointer; }
+.qa:hover { border-color: var(--accent); }
+.qa b { display: block; font-size: 12.5px; font-weight: 600; }
+.qa span { color: var(--muted); font-size: 11.5px; }
+.sect { padding: 6px 12px 2px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.list { overflow: auto; padding: 4px 6px 10px; }
+.item { padding: 7px 8px; border-radius: 9px; cursor: pointer; }
+.item:hover { background: var(--chip); }
+.item .top { display: flex; gap: 6px; align-items: center; font-size: 11.5px; color: var(--muted); }
+.item .txt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 2px; }
+.chip { font-size: 10.5px; padding: 0 7px; border-radius: 999px; background: var(--chip); color: var(--muted); }
+.chip.used { background: var(--accent-2); color: var(--accent); }
+.empty { color: var(--muted); padding: 14px 8px; text-align: center; font-size: 12.5px; }
+#edge .wrap { height: calc(100vh - 12px); display: flex; flex-direction: column; }
+#edge .list { flex: 1; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const TOKEN = "__GLINT_TOKEN__";
+const MODE = new URLSearchParams(location.search).get("mode") || "draft";
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const post = (msg) => window.webkit?.messageHandlers?.glint?.postMessage({ panel: MODE, ...msg });
+async function api(path, body) {
+  const res = await fetch(path, { method: body ? "POST" : "GET", headers: { "X-Glint-Token": TOKEN, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+const fit = () => requestAnimationFrame(() => post({ action: "assist.resize", height: Math.ceil(document.querySelector(".wrap")?.getBoundingClientRect().height || 0) + 12 }));
+const close = () => post({ action: "assist.close" });
+const outcome = (id, o) => id && api("/api/assist/outcome", { id, outcome: o }).catch(() => {});
+
+// Accent follows the main app's setting.
+api("/api/settings").then(({ settings }) => {
+  const acc = { green: ["#2f6f5e", "#6cc3a6"], blue: ["#2f5fa8", "#7aa7ee"], purple: ["#6a4bb3", "#a98ff0"], pink: ["#b2457a", "#ef8fbd"],
+    orange: ["#b8622a", "#f0a36b"], teal: ["#1f7a85", "#63c8d2"], graphite: ["#4a4a4a", "#b5b5b5"] }[settings.accent];
+  if (!acc) return;
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches, c = dark ? acc[1] : acc[0];
+  document.documentElement.style.setProperty("--accent", c);
+  document.documentElement.style.setProperty("--accent-2", c + "22");
+}).catch(() => {});
+
+/* ------------------------------------------------------------------ draft */
+function draftMode() {
+  let ctx = null, cur = null, busy = false, seq = 0;
+  $("#root").innerHTML = `<div class="wrap">
+    <div class="bar"><div class="logo">◐</div><div class="grow" id="where">Draft</div><button class="x" id="x" title="Close (Esc)">×</button></div>
+    <div class="body"><div class="status" id="st"></div><textarea class="draft" id="txt" spellcheck="true" hidden></textarea></div>
+    <div class="acts">
+      <button class="btn primary" id="ins" disabled>Insert</button>
+      <button class="btn" id="copy" disabled>Copy</button>
+      <button class="btn" data-tweak="shorter" disabled>Shorter</button>
+      <button class="btn" data-tweak="formal" disabled>More formal</button>
+      <button class="btn" data-tweak="again" disabled title="Tap the chord again to regenerate">Again</button>
+      <span class="hint"><kbd>Tab</kbd> insert · <kbd>Esc</kbd> close</span>
+      <div class="steer"><input id="steer" placeholder="Tell it what to change, then Enter" maxlength="600"></div>
+    </div></div>`;
+  const txt = $("#txt"), st = $("#st");
+  const grow = () => { txt.style.height = "auto"; txt.style.height = Math.min(360, txt.scrollHeight) + "px"; fit(); };
+  const setBusy = (b, label) => {
+    busy = b;
+    const hasText = !!cur?.draft && !cur.empty;
+    document.querySelectorAll(".acts .btn").forEach((x) => x.disabled = b || (x.dataset.tweak ? !cur : !hasText));
+    if (b) { st.hidden = false; st.className = "status"; st.innerHTML = `<span class="dots">${esc(label)}</span>`; }
+  };
+  async function run(extra = {}) {
+    if (!ctx) return;
+    const my = ++seq;
+    setBusy(true, extra.tweak === "shorter" ? "Shortening" : extra.tweak === "formal" ? "Polishing" : extra.instruction ? "Rewriting" : "Drafting");
+    try {
+      const r = await api("/api/assist/draft", { app: ctx.app, title: ctx.title, field_text: ctx.field_text, draft_id: cur?.id, ...extra });
+      if (my !== seq) return;
+      cur = r;
+      if (r.empty) { st.hidden = false; st.className = "status"; st.textContent = "Nothing to add here. Try telling it what you want below."; txt.hidden = true; }
+      else { st.hidden = true; txt.hidden = false; txt.value = r.draft; }
+    } catch (e) {
+      if (my !== seq) return;
+      st.hidden = false; st.className = "status err";
+      st.innerHTML = `${esc(e.message)}${/key|Settings/i.test(e.message) ? ' <button class="btn" id="openSet">Open Settings</button>' : ""}`;
+      const b = $("#openSet"); if (b) b.onclick = () => { close(); post({ action: "assist.openMain", path: "settings" }); };
+    }
+    setBusy(false); grow();
+    if (!txt.hidden) { txt.focus(); txt.setSelectionRange(txt.value.length, txt.value.length); }
+  }
+  const text = () => (txt.hidden ? "" : txt.value);
+  function insert() {
+    if (busy || !text().trim()) return;
+    outcome(cur?.id, "inserted");
+    post({ action: "assist.insert", text: text(), mode: cur?.mode || "write" });
+  }
+  function dismiss() { if (cur && !busy) outcome(cur.id, "dismissed"); seq++; close(); }
+  $("#ins").onclick = insert;
+  $("#copy").onclick = () => { if (!text()) return; outcome(cur?.id, "copied"); post({ action: "assist.copy", text: text() }); close(); };
+  document.querySelectorAll("[data-tweak]").forEach((b) => b.onclick = () => run({ tweak: b.dataset.tweak }));
+  $("#x").onclick = dismiss;
+  txt.oninput = grow;
+  $("#steer").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); const v = e.target.value.trim(); if (v) { e.target.value = ""; run({ instruction: v }); } }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { e.preventDefault(); dismiss(); }
+    else if (e.key === "Tab" && document.activeElement !== $("#steer")) { e.preventDefault(); insert(); }
+    else if (e.key === "Enter" && e.metaKey) { e.preventDefault(); insert(); }
+  });
+  window.assistDraft = (c) => { ctx = c; cur = null; $("#where").textContent = `Draft for ${c.app || "this field"}${c.title ? " · " + c.title : ""}`; txt.value = ""; txt.hidden = true; run(); };
+  window.assistDraftAgain = () => { if (!busy) run({ tweak: "again" }); };
+  window.assistReset = () => { seq++; ctx = null; cur = null; txt.value = ""; txt.hidden = true; st.textContent = ""; };
+  setBusy(false); fit();
+}
+
+/* ------------------------------------------------------------------ card */
+function cardMode() {
+  let card = null, lastTouch = 0;
+  const RESULT = {
+    applied: ["Inserted.", true], copied: ["Copied to the clipboard.", true], opened: ["Opened.", false],
+    stale: ["The window changed, so this card is out of date.", false], failed: ["Couldn't do that.", false],
+    undone: ["Undone.", false], unavailable: ["Undo is no longer available.", false], dismissed: ["Dismissed.", false],
+  };
+  function render() {
+    const a = card.actions || [];
+    const pv = a.find((x) => x.preview);
+    $("#root").innerHTML = `<div class="wrap">
+      <div class="bar"><div class="logo">◐</div><div class="grow"><span class="kind">${esc(card.kind || "suggestion")}</span>${card.app ? ` · ${esc(card.app)}` : ""}</div><button class="x" id="x" title="Dismiss (Esc)">×</button></div>
+      <div class="body"><h3>${esc(card.title)}</h3><div class="card-body">${esc(card.body)}</div>${pv ? `<div class="preview">${esc(pv.preview)}</div>` : ""}</div>
+      <div class="acts">${a.map((x, i) => `<button class="btn ${i ? "" : "primary"}" data-a="${esc(x.id)}" title="${esc(x.url || "")}">${esc(x.label)}</button>`).join("")}
+        <button class="btn" id="ask">Ask about this</button><button class="btn" id="dis">Not useful</button></div>
+      <div class="result" id="res"><span id="resText"></span><button id="undo" hidden>Undo</button></div></div>`;
+    let token = null;
+    document.querySelectorAll("[data-a]").forEach((b) => b.onclick = () => {
+      document.querySelectorAll("[data-a]").forEach((x) => x.disabled = true);
+      post({ action: "assist.cardAction", card_id: card.id, action_id: b.dataset.a });
+    });
+    $("#x").onclick = $("#dis").onclick = () => post({ action: "assist.cardAction", card_id: card.id, action_id: "dismiss" });
+    $("#ask").onclick = () => { outcome(card.id, "shown"); post({ action: "assist.close" }); post({ action: "assist.quickAsk" }); };
+    $("#undo").onclick = () => { if (token) post({ action: "assist.undo", undo_token: token }); $("#undo").hidden = true; };
+    window.assistActionResult = (r) => {
+      const [label, undoable] = RESULT[r.result] || [r.error || r.result, false];
+      $("#resText").textContent = label;
+      token = r.undo_token || null;
+      $("#undo").hidden = !(undoable && token);
+      $("#res").classList.add("on");
+      if (["stale", "failed"].includes(r.result)) document.querySelectorAll("[data-a]").forEach((x) => x.disabled = false);
+      fit();
+    };
+    fit();
+  }
+  window.assistCard = (c) => { card = c; render(); };
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && card) post({ action: "assist.cardAction", card_id: card.id, action_id: "dismiss" });
+    if (e.key === "Enter" && card) $("[data-a]")?.click();
+  });
+  document.addEventListener("mousemove", () => { if (Date.now() - lastTouch > 3000) { lastTouch = Date.now(); post({ action: "assist.cardTouched" }); } });
+}
+
+/* ------------------------------------------------------------------ edge */
+function edgeMode() {
+  document.body.id = "edge";
+  let ctx = {};
+  const OUT = { inserted: "inserted", applied: "inserted", copied: "copied", opened: "opened", dismissed: "dismissed", ignored: "missed", undone: "undone", stale: "stale", failed: "failed", drafted: "drafted", offered: "offered", shown: "seen" };
+  const ago = (ms) => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? "now" : m < 60 ? `${m}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`; };
+  $("#root").innerHTML = `<div class="wrap">
+    <div class="bar"><div class="logo">◐</div><div class="grow" id="where">Assist</div><button class="x" id="x" title="Close (Esc)">×</button></div>
+    <div class="grid">
+      <button class="qa" data-k="d"><b>Draft here</b><span>Write for the focused field · D</span></button>
+      <button class="qa" data-k="a"><b>Quick Ask</b><span>Ask about your screen · A</span></button>
+      <button class="qa" data-k="s"><b>Suggest now</b><span>Look for something useful · S</span></button>
+      <button class="qa" data-k="p"><b id="pauseLabel">Pause suggestions</b><span id="pauseSub">For one hour · P</span></button>
+    </div>
+    <div class="sect" style="display:flex;justify-content:space-between"><span>Recent</span><a href="#" id="all" style="color:var(--accent);text-decoration:none;text-transform:none;letter-spacing:0">All history · O</a></div>
+    <div class="list" id="list"><div class="empty">Loading…</div></div></div>`;
+  let items = [];
+  async function load() {
+    try {
+      const r = await api("/api/assist/history?limit=20");
+      items = r.items;
+      const used = ["inserted", "applied", "copied", "opened"].reduce((n, k) => n + (r.today[k] || 0), 0);
+      $("#where").textContent = `Assist${ctx.app ? " · " + ctx.app : ""} · ${used} used today`;
+      $("#list").innerHTML = items.length ? items.map((it, i) => {
+        const text = it.kind === "card" ? `${it.headline}: ${it.body}` : it.body || "(empty draft)";
+        return `<div class="item" data-i="${i}" title="Click to copy"><div class="top"><span>${it.kind === "card" ? "Card" : "Draft"}</span>·<span>${esc(it.app || "")}</span>·<span>${ago(it.created_at)}</span><span class="chip ${["inserted", "applied", "copied", "opened"].includes(it.outcome) ? "used" : ""}" style="margin-left:auto">${esc(OUT[it.outcome] || it.outcome)}</span></div><div class="txt">${esc(text)}</div></div>`;
+      }).join("") : `<div class="empty">Nothing yet. Tap the assist chord in a text field to draft, or wait for a suggestion.</div>`;
+    } catch (e) { $("#list").innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  }
+  const act = (k) => {
+    if (k === "d") post({ action: "assist.draftNow" });
+    else if (k === "a") post({ action: "assist.quickAsk" });
+    else if (k === "s") { post({ action: "assist.checkCard" }); close(); }
+    else if (k === "p") { if (ctx.cards_paused) { post({ action: "assist.pauseCards", minutes: 0 }); } else post({ action: "assist.pauseCards", minutes: 60 }); close(); }
+    else if (k === "o") post({ action: "assist.openMain", path: "assist" });
+  };
+  document.querySelectorAll(".qa").forEach((b) => b.onclick = () => act(b.dataset.k));
+  $("#all").onclick = (e) => { e.preventDefault(); act("o"); };
+  $("#x").onclick = close;
+  $("#list").onclick = (e) => {
+    const el = e.target.closest(".item"); if (!el) return;
+    const it = items[+el.dataset.i];
+    const text = it.kind === "card" ? (it.actions.find((a) => a.preview)?.preview || it.body) : it.body;
+    if (text) { post({ action: "assist.copy", text }); el.querySelector(".chip").textContent = "copied"; }
+  };
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") return close();
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase(); if ("dasp o".includes(k) && k.trim()) act(k);
+  });
+  window.assistEdgeOpened = (c) => {
+    ctx = c || {};
+    $("#pauseLabel").textContent = ctx.cards_paused ? "Resume suggestions" : "Pause suggestions";
+    $("#pauseSub").textContent = ctx.cards === false ? "Suggestions are off in Settings" : ctx.cards_paused ? "Paused now · P" : "For one hour · P";
+    load();
+  };
+}
+
+({ draft: draftMode, card: cardMode, edge: edgeMode }[MODE] || draftMode)();
+post({ action: "assist.ready" });
+</script>
+</body>
+</html>
