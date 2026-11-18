@@ -13,23 +13,24 @@
     .gr-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
     .gr-search { position: relative; flex: 1 1 220px; min-width: 180px; }
     .gr-search input { width: 100%; }
-    .gr-sugg { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 6; padding: 4px; display: none; max-height: 300px; overflow: auto; }
+    .gr-sugg { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 6; padding: 5px; display: none; max-height: 300px; overflow: auto; box-shadow: var(--shadow-pop); border-radius: var(--r-lg); }
     .gr-sugg.on { display: block; }
     .gr-sugg div { padding: 6px 9px; border-radius: 8px; cursor: pointer; display: flex; gap: 8px; align-items: center; }
-    .gr-sugg div:hover, .gr-sugg div.on { background: var(--panel-2); }
+    .gr-sugg div:hover, .gr-sugg div.on { background: var(--accent-2); }
     .gr-sugg small { color: var(--muted); margin-left: auto; }
     .gr-types { display: flex; gap: 5px; flex-wrap: wrap; }
-    .gr-type { font-size: 12px; padding: 3px 9px; border-radius: 999px; display: inline-flex; gap: 6px; align-items: center; }
+    .gr-type { font-size: 12px; min-height: 26px; padding: 0 10px; border-radius: 999px; display: inline-flex; gap: 6px; align-items: center; box-shadow: none; }
     .gr-type i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-    .gr-type.off { opacity: .45; }
+    .gr-type.off { opacity: .5; background: transparent; }
     .gr-type.off i { background: var(--faint) !important; }
-    .gr-main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start; }
-    .gr-canvas { position: relative; height: calc(100vh - 230px); min-height: 420px; overflow: hidden; padding: 0; }
+    .gr-main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+    .gr-canvas { position: relative; height: calc(100vh - 230px); min-height: 420px; overflow: hidden; padding: 0;
+      background: radial-gradient(circle at 1px 1px, var(--line-2) 1px, transparent 1.2px) 0 0 / 22px 22px, var(--panel); }
     .gr-canvas svg { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
     .gr-canvas svg.panning { cursor: grabbing; }
     .gr-canvas .edge { stroke: var(--muted); stroke-linecap: round; transition: opacity .15s; }
     .gr-canvas .node { cursor: pointer; transition: opacity .15s; }
-    .gr-canvas .node circle { stroke: var(--panel); stroke-width: 1.5; }
+    .gr-canvas .node circle { stroke: var(--panel); stroke-width: 2; }
     .gr-canvas .node.sel circle { stroke: var(--text); stroke-width: 2.5; }
     .gr-canvas .node text { font-size: calc(11.5px / var(--gk, 1)); fill: var(--text); paint-order: stroke; stroke: var(--panel); stroke-width: calc(3px / var(--gk, 1)); stroke-linejoin: round; pointer-events: none; }
     .gr-canvas .node.small text { display: none; }
@@ -37,38 +38,41 @@
     .gr-canvas svg.hover .node:not(.hi) { opacity: .18; }
     .gr-canvas svg.hover .edge:not(.hi) { opacity: .06; }
     .gr-canvas svg.hover .edge.hi { stroke: var(--accent); }
-    .gr-tools { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 4px; }
-    .gr-tools button { width: 30px; height: 30px; padding: 0; font-size: 15px; line-height: 1; background: var(--panel); }
-    .gr-note { position: absolute; left: 12px; bottom: 10px; font-size: 12px; color: var(--muted); pointer-events: none; }
-    .gr-crumb { position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; align-items: center; }
-    .gr-crumb button { font-size: 12.5px; padding: 4px 10px; background: var(--panel); }
-    .gr-side { padding: 18px; max-height: calc(100vh - 230px); min-height: 420px; overflow: auto; }
-    .gr-side h3 { margin: 0; font-size: 18px; letter-spacing: -.01em; display: flex; gap: 8px; align-items: center; overflow-wrap: anywhere; }
-    .gr-side h4 { margin: 16px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+    .gr-tools { position: absolute; right: 12px; top: 12px; display: flex; flex-direction: column; padding: 3px; gap: 2px; border-radius: var(--r-md); background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); }
+    .gr-tools button { width: 28px; height: 28px; min-height: 28px; padding: 0; font-size: 15px; line-height: 1; background: transparent; border: 0; box-shadow: none; color: var(--muted); }
+    .gr-tools button:hover:not(:disabled) { color: var(--text); background: var(--hover); }
+    .gr-note { position: absolute; left: 12px; bottom: 10px; font-size: 11.5px; color: var(--muted); pointer-events: none; padding: 3px 9px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); }
+    .gr-note:empty { display: none; }
+    .gr-crumb { position: absolute; left: 12px; top: 12px; display: flex; gap: 6px; align-items: center; }
+    .gr-crumb button { font-size: 12.5px; min-height: 28px; padding: 3px 10px; background: var(--panel); box-shadow: var(--shadow); }
+    .gr-side { padding: 20px; max-height: calc(100vh - 230px); min-height: 420px; overflow: auto; }
+    .gr-side h3 { margin: 0; font-size: 18px; font-weight: 680; letter-spacing: -.02em; display: flex; gap: 8px; align-items: center; overflow-wrap: anywhere; }
+    .gr-side h4 { margin: 20px 0 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
     .gr-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
     .gr-meta { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
     .gr-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
-    .gr-acts button, .gr-acts select { padding: 4px 9px; font-size: 12.5px; }
+    .gr-acts button, .gr-acts select { min-height: 26px; padding: 3px 9px; font-size: 12.5px; }
+    .gr-acts select { padding-right: 26px; }
     .gr-alias { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
     .gr-alias .chip button { border: 0; background: none; padding: 0 0 0 2px; color: var(--faint); font-size: 12px; }
     .gr-alias .chip button:hover { color: var(--danger); }
-    .gr-alias input { font-size: 12.5px; padding: 3px 8px; width: 120px; }
+    .gr-alias input { font-size: 12.5px; min-height: 24px; padding: 2px 9px; width: 120px; border-radius: 999px; border-style: dashed; }
     .gr-rel { display: grid; grid-template-columns: 9px 1fr 52px; gap: 4px 8px; align-items: center; padding: 5px 6px; border-radius: 8px; cursor: pointer; font-size: 13px; }
-    .gr-rel:hover { background: var(--panel-2); }
+    .gr-rel:hover { background: var(--hover); }
     .gr-rel span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .gr-rel .w { height: 5px; border-radius: 3px; background: var(--panel-2); overflow: hidden; }
+    .gr-rel .w { height: 4px; border-radius: 3px; background: var(--panel-3); overflow: hidden; }
     .gr-rel .w i { display: block; height: 100%; background: var(--accent); }
     .gr-ses { padding: 7px 8px; border-radius: 8px; cursor: pointer; font-size: 13px; }
-    .gr-ses:hover { background: var(--panel-2); }
+    .gr-ses:hover { background: var(--hover); }
     .gr-ses small { display: block; color: var(--muted); font-size: 12px; }
-    .gr-merge { margin-top: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+    .gr-merge { margin-top: 10px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel-2); }
     .gr-merge input { width: 100%; margin-top: 6px; }
     .gr-merge .opts div { padding: 5px 7px; border-radius: 7px; cursor: pointer; font-size: 13px; }
     .gr-merge .opts div:hover { background: var(--panel); }
     .gr-top div { padding: 5px 6px; border-radius: 8px; cursor: pointer; display: flex; gap: 8px; align-items: center; font-size: 13px; }
-    .gr-top div:hover { background: var(--panel-2); }
+    .gr-top div:hover { background: var(--hover); }
     .gr-top small { margin-left: auto; color: var(--muted); }
-    .gr-prog { height: 6px; border-radius: 4px; background: var(--panel-2); overflow: hidden; margin-top: 8px; width: 100%; }
+    .gr-prog { height: 4px; border-radius: 4px; background: var(--panel-3); overflow: hidden; margin-top: 8px; width: 100%; }
     .gr-prog i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
     @media (max-width: 920px) { .gr-main { grid-template-columns: 1fr; } .gr-side { max-height: none; min-height: 0; } .gr-canvas { height: 60vh; } }
   `;
@@ -82,7 +86,7 @@
     label: "Graph",
     html: `
       <div class="gr-bar">
-        <div class="gr-search"><input type="search" id="grQ" placeholder="Find a person, project, document…" autocomplete="off"><div class="card gr-sugg" id="grSugg"></div></div>
+        <div class="gr-search search"><input type="search" id="grQ" placeholder="Find a person, project, document…" autocomplete="off"><div class="card gr-sugg" id="grSugg"></div></div>
         <select id="grDays" title="Time window"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last year</option><option value="0">All time</option></select>
         <select id="grLimit" title="How many entities"><option value="40">40 nodes</option><option value="80" selected>80 nodes</option><option value="150">150 nodes</option><option value="300">300 nodes</option></select>
         <div class="gr-types" id="grTypes"></div>
@@ -91,7 +95,7 @@
         <div class="card gr-canvas" id="grCanvas">
           <svg id="grSvg" aria-label="Knowledge graph"><g id="grView"><g id="grEdges"></g><g id="grNodes"></g></g></svg>
           <div class="gr-crumb" id="grCrumb"></div>
-          <div class="gr-tools"><button id="grIn" title="Zoom in">+</button><button id="grOut" title="Zoom out">−</button><button id="grFit" title="Fit to view">⤢</button><button id="grReheat" title="Re-run layout">↻</button></div>
+          <div class="gr-tools"><button id="grIn" title="Zoom in" aria-label="Zoom in">+</button><button id="grOut" title="Zoom out" aria-label="Zoom out">−</button><button id="grFit" title="Fit to view" aria-label="Fit to view">⤢</button><button id="grReheat" title="Re-run layout" aria-label="Re-run layout">↻</button></div>
           <div class="gr-note" id="grNote"></div>
         </div>
         <div class="card gr-side" id="grSide"></div>

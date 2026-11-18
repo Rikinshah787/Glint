@@ -28,20 +28,44 @@ final class Engine {
 
     var baseURL: URL { URL(string: "http://127.0.0.1:\(port)/")! }
 
-    func start() {
+    /// Where the engine lives: the self-contained bundle (Resources/python + Resources/engine, built by
+    /// scripts/package.sh) wins; otherwise the dev checkout baked into Info.plist by scripts/build.sh.
+    private func engineLocation() -> (python: String, script: String, bundled: Bool)? {
+        let fm = FileManager.default
+        if let res = Bundle.main.resourceURL?.path {
+            let python = "\(res)/python/bin/python3", script = "\(res)/engine/engine.py"
+            if fm.isExecutableFile(atPath: python) && fm.fileExists(atPath: script) {
+                return (python, script, true)
+            }
+        }
         let root = Bundle.main.object(forInfoDictionaryKey: "GlintProjectRoot") as? String ?? ""
-        let python = "\(root)/.venv/bin/python"
-        let script = "\(root)/engine/engine.py"
-        guard FileManager.default.isExecutableFile(atPath: python) else {
-            fail("Python environment not found at \(python). Run scripts/setup.sh, then scripts/build.sh.")
+        let python = "\(root)/.venv/bin/python", script = "\(root)/engine/engine.py"
+        if !root.isEmpty && fm.isExecutableFile(atPath: python) && fm.fileExists(atPath: script) {
+            return (python, script, false)
+        }
+        return nil
+    }
+
+    func start() {
+        guard let loc = engineLocation() else {
+            fail("Glint's engine was not found inside the app. Download Glint again, or from a source " +
+                 "checkout run scripts/setup.sh, then scripts/build.sh.")
             return
         }
         let p = Process()
-        p.executableURL = URL(fileURLWithPath: python)
-        p.arguments = ["-W", "ignore", script]
+        p.executableURL = URL(fileURLWithPath: loc.python)
+        p.arguments = ["-W", "ignore", loc.script]
         var env = ProcessInfo.processInfo.environment
         env["GLINT_PORT"] = String(port)
         env["GLINT_TOKEN"] = token
+        if loc.bundled {
+            // The bundle is signed and may be read-only (translocated); keep the runtime isolated from
+            // any user Python setup and never write .pyc files into it (they are precompiled).
+            env["PYTHONDONTWRITEBYTECODE"] = "1"
+            env["PYTHONNOUSERSITE"] = "1"
+            env.removeValue(forKey: "PYTHONHOME")
+            env.removeValue(forKey: "PYTHONPATH")
+        }
         p.environment = env
         let out = Pipe()
         p.standardOutput = out
@@ -594,6 +618,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         item.button?.image = NSImage(systemSymbolName: "eye.circle", accessibilityDescription: "Glint")
         let m = NSMenu()
         m.addItem(withTitle: "Open Glint", action: #selector(openMain), keyEquivalent: "").target = self
+        m.addItem(withTitle: "Try Glint (practice page)…", action: #selector(openPractice), keyEquivalent: "").target = self
         let qa = m.addItem(withTitle: "Quick Ask", action: #selector(quickAskMenu), keyEquivalent: "k")
         qa.keyEquivalentModifierMask = [.command, .shift]
         qa.target = self
@@ -612,6 +637,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func openMain() { showMain(path: nil) }
+    /// A page of practice text fields that opens in the default browser, where every feature works.
+    @objc func openPractice() { NSWorkspace.shared.open(engine.baseURL.appendingPathComponent("features/practice.html")) }
     @objc func openSettings() { showMain(path: "settings") }
     @objc func quickAskMenu() { toggleQuickAsk() }
     @objc func captureNow() { engine.post("api/capture", ["now": true]) }

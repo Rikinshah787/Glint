@@ -5,66 +5,102 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Assist</title>
 <style>
-:root { --panel: rgba(255,255,255,.94); --line: rgba(0,0,0,.09); --text: #1d1b18; --muted: #75716a; --faint: #a39f97;
-  --accent: #2f6f5e; --accent-2: rgba(47,111,94,.12); --chip: rgba(0,0,0,.05); --danger: #c0392b; }
-@media (prefers-color-scheme: dark) {
-  :root { --panel: rgba(32,31,28,.94); --line: rgba(255,255,255,.1); --text: #ecebe7; --muted: #a29e95; --faint: #6f6b63;
-    --accent: #6cc3a6; --accent-2: rgba(108,195,166,.15); --chip: rgba(255,255,255,.07); --danger: #ff7a6b; }
+/* Tokens copied from app.html's design system (glass variant for floating panels). */
+:root, :root[data-theme="light"] {
+  color-scheme: light;
+  --glass: rgba(251,251,250,.9); --panel: #ffffff; --panel-2: rgba(20,20,15,.045); --hover: rgba(20,20,15,.05);
+  --line: rgba(20,20,15,.09); --line-2: rgba(20,20,15,.15); --chip: rgba(20,20,15,.055);
+  --text: #1b1b19; --muted: #595954; --faint: #6b6b66;
+  --accent: #2f6f5e; --accent-2: rgba(47,111,94,.12); --accent-ring: rgba(47,111,94,.25); --on-accent: #fff; --accent-deep: #2f6f5e;
+  --danger: #c4372b;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  color-scheme: dark;
+  --glass: rgba(28,28,27,.9); --panel: #262625; --panel-2: rgba(255,255,255,.05); --hover: rgba(255,255,255,.06);
+  --line: rgba(255,255,255,.08); --line-2: rgba(255,255,255,.14); --chip: rgba(255,255,255,.07);
+  --text: #ededea; --muted: #a6a6a1; --faint: #8f8f8a;
+  --accent: #6cc3a6; --accent-2: rgba(108,195,166,.15); --accent-ring: rgba(108,195,166,.3); --on-accent: #0f1412; --danger: #ff7b6e;
+} }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --glass: rgba(28,28,27,.9); --panel: #262625; --panel-2: rgba(255,255,255,.05); --hover: rgba(255,255,255,.06);
+  --line: rgba(255,255,255,.08); --line-2: rgba(255,255,255,.14); --chip: rgba(255,255,255,.07);
+  --text: #ededea; --muted: #a6a6a1; --faint: #8f8f8a;
+  --accent: #6cc3a6; --accent-2: rgba(108,195,166,.15); --accent-ring: rgba(108,195,166,.3); --on-accent: #0f1412; --danger: #ff7b6e;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: transparent; overflow: hidden; }
-body { font: 13.5px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; color: var(--text); padding: 6px; }
+body { font: 13.5px/1.45 var(--font); color: var(--text); padding: 6px; -webkit-font-smoothing: antialiased; }
 button, input, textarea { font: inherit; color: inherit; }
-.wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;
-  -webkit-backdrop-filter: blur(30px) saturate(1.4); backdrop-filter: blur(30px) saturate(1.4); }
-.bar { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
-.bar .logo { width: 18px; height: 18px; border-radius: 6px; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 11px; flex: none; }
+:focus { outline: none; } :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.wrap { background: var(--glass); border-radius: 14px; overflow: hidden;
+  -webkit-backdrop-filter: blur(40px) saturate(1.6); backdrop-filter: blur(40px) saturate(1.6);
+  box-shadow: inset 0 0 0 1px var(--line-2), inset 0 1px 0 rgba(255,255,255,.12); }
+.bar { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 11px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; font-weight: 500; }
+.mark { flex: none; width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; color: #fff;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent-deep) 72%, #fff 28%), color-mix(in srgb, var(--accent-deep) 80%, #000 20%));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 1px 2px rgba(0,0,0,.15); }
+.mark svg { width: 72%; height: 72%; }
 .bar .grow { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.x { border: 0; background: none; color: var(--faint); cursor: pointer; padding: 0 2px; font-size: 15px; line-height: 1; }
-.x:hover { color: var(--text); }
-.body { padding: 10px 12px; }
-textarea.draft { width: 100%; border: 0; outline: none; resize: none; background: transparent; min-height: 44px; max-height: 360px; line-height: 1.5; }
+.x { flex: none; width: 22px; height: 22px; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: var(--faint); cursor: pointer; padding: 0; font-size: 16px; line-height: 1; }
+.x:hover { color: var(--text); background: var(--hover); }
+.body { padding: 11px 13px; }
+textarea.draft { width: 100%; border: 0; outline: none; resize: none; background: transparent; min-height: 44px; max-height: 360px; line-height: 1.55; font-size: 14px; caret-color: var(--accent); }
 .status { color: var(--muted); padding: 4px 0; }
 .status.err { color: var(--danger); }
-.dots::after { content: "…"; animation: dots 1.2s steps(4) infinite; display: inline-block; width: 1em; overflow: hidden; vertical-align: bottom; }
-@keyframes dots { 0% { width: 0; } 100% { width: 1em; } }
-.acts { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 10px; border-top: 1px solid var(--line); align-items: center; }
-.btn { border: 1px solid var(--line); background: transparent; border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 12.5px; }
-.btn:hover:not(:disabled) { border-color: var(--accent); }
+.dots { background: linear-gradient(90deg, var(--faint) 0%, var(--text) 45%, var(--faint) 90%) 0 0 / 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 1.6s linear infinite; font-weight: 500; }
+.dots::after { content: "…"; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -50% 0; } }
+.acts { display: flex; flex-wrap: wrap; gap: 6px; padding: 9px 11px 11px; border-top: 1px solid var(--line); align-items: center; }
+.btn { display: inline-flex; align-items: center; gap: 5px; height: 26px; border: 1px solid var(--line-2); background: var(--panel); border-radius: 7px; padding: 0 10px; cursor: pointer; font-size: 12.5px; font-weight: 500;
+  box-shadow: 0 1px 1px rgba(0,0,0,.04); transition: background .12s, border-color .12s; }
+.btn:hover:not(:disabled) { background: var(--hover); }
 .btn:disabled { opacity: .45; cursor: default; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.steer { flex: 1 1 100%; display: flex; gap: 6px; margin-top: 2px; }
-.steer input { flex: 1; border: 1px solid var(--line); background: transparent; border-radius: 8px; padding: 5px 9px; outline: none; }
-.steer input:focus { border-color: var(--accent); }
-kbd { font: 10.5px ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; color: var(--muted); }
-.hint { color: var(--faint); font-size: 11.5px; margin-left: auto; }
-.kind { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); font-weight: 600; }
-h3 { margin: 2px 0 4px; font-size: 14.5px; letter-spacing: -.01em; }
+.btn.primary { background: var(--accent); border-color: transparent; color: var(--on-accent); box-shadow: inset 0 1px 0 rgba(255,255,255,.18); }
+.btn.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.07); }
+.steer { flex: 1 1 100%; display: flex; gap: 6px; margin-top: 4px; position: relative; }
+.steer::before { content: ""; position: absolute; left: 10px; top: 50%; width: 13px; height: 13px; margin-top: -6.5px; background: var(--accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5c.5 4.9 2.6 7 7.5 7.5-4.9.5-7 2.6-7.5 7.5-.5-4.9-2.6-7-7.5-7.5 4.9-.5 7-2.6 7.5-7.5Z'/%3E%3C/svg%3E") center / contain no-repeat; }
+.steer input { flex: 1; height: 30px; border: 1px solid var(--line-2); background: var(--panel); border-radius: 8px; padding: 0 10px 0 30px; outline: none; font-size: 13px; }
+.steer input::placeholder { color: var(--faint); }
+.steer input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+kbd { display: inline-block; min-width: 16px; text-align: center; font: 10.5px/15px var(--mono); border: 1px solid var(--line-2); border-bottom-width: 1.5px; border-radius: 4px; padding: 0 4px; color: var(--muted); background: var(--panel-2); }
+.hint { color: var(--faint); font-size: 11.5px; margin-left: auto; white-space: nowrap; }
+.kind { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--accent); font-weight: 650; }
+h3 { margin: 1px 0 4px; font-size: 14.5px; font-weight: 650; letter-spacing: -.01em; }
 .card-body { color: var(--muted); }
-.preview { margin-top: 8px; padding: 8px 10px; border-radius: 9px; background: var(--chip); white-space: pre-wrap; max-height: 140px; overflow: auto; font-size: 12.5px; }
-.result { padding: 8px 12px; border-top: 1px solid var(--line); display: none; align-items: center; gap: 8px; font-size: 12.5px; }
+.preview { margin-top: 10px; padding: 9px 11px; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); white-space: pre-wrap; max-height: 140px; overflow: auto; font-size: 12.5px; }
+.result { padding: 8px 12px; border-top: 1px solid var(--line); display: none; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
 .result.on { display: flex; }
-.result button { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; font-weight: 600; }
+.result button { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 2px 6px; border-radius: 5px; font-weight: 600; }
+.result button:hover { background: var(--accent-2); }
 /* edge */
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px 12px; }
-.qa { text-align: left; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: transparent; cursor: pointer; }
-.qa:hover { border-color: var(--accent); }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px 10px 8px; }
+.qa { text-align: left; border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; background: var(--panel); cursor: pointer; box-shadow: 0 1px 1px rgba(0,0,0,.04); transition: border-color .12s, background .12s; }
+.qa:hover { border-color: var(--accent); background: var(--accent-2); }
 .qa b { display: block; font-size: 12.5px; font-weight: 600; }
 .qa span { color: var(--muted); font-size: 11.5px; }
-.sect { padding: 6px 12px 2px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
-.list { overflow: auto; padding: 4px 6px 10px; }
-.item { padding: 7px 8px; border-radius: 9px; cursor: pointer; }
-.item:hover { background: var(--chip); }
-.item .top { display: flex; gap: 6px; align-items: center; font-size: 11.5px; color: var(--muted); }
-.item .txt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 2px; }
-.chip { font-size: 10.5px; padding: 0 7px; border-radius: 999px; background: var(--chip); color: var(--muted); }
+.sect { padding: 8px 14px 4px; color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .01em; }
+.sect a { font-weight: 500; }
+.list { overflow: auto; padding: 2px 6px 10px; }
+.item { padding: 8px 9px; border-radius: 9px; cursor: pointer; }
+.item:hover { background: var(--hover); }
+.item .top { display: flex; gap: 6px; align-items: center; font-size: 11.5px; color: var(--faint); }
+.item .txt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 3px; font-size: 13px; }
+.chip { font-size: 10.5px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--chip); color: var(--muted); }
 .chip.used { background: var(--accent-2); color: var(--accent); }
-.empty { color: var(--muted); padding: 14px 8px; text-align: center; font-size: 12.5px; }
+.empty { color: var(--muted); padding: 22px 12px; text-align: center; font-size: 12.5px; }
 #edge .wrap { height: calc(100vh - 12px); display: flex; flex-direction: column; }
 #edge .list { flex: 1; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; } }
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="glint-glyph" viewBox="0 0 24 24"><path d="M17.05 13.32A6.6 6.6 0 1 1 10.68 6.95" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path fill="currentColor" d="M17.45 2.65Q18.05 5.95 21.35 6.55 18.05 7.15 17.45 10.45 16.85 7.15 13.55 6.55 16.85 5.95 17.45 2.65Z"/></symbol>
+</svg>
 <div id="root"></div>
 <script>
 const TOKEN = "__GLINT_TOKEN__";
@@ -84,10 +120,14 @@ const outcome = (id, o) => id && api("/api/assist/outcome", { id, outcome: o }).
 
 // Accent follows the main app's setting.
 api("/api/settings").then(({ settings }) => {
-  const acc = { green: ["#2f6f5e", "#6cc3a6"], blue: ["#2f5fa8", "#7aa7ee"], purple: ["#6a4bb3", "#a98ff0"], pink: ["#b2457a", "#ef8fbd"],
-    orange: ["#b8622a", "#f0a36b"], teal: ["#1f7a85", "#63c8d2"], graphite: ["#4a4a4a", "#b5b5b5"] }[settings.accent];
+  const acc = { green: ["#2f6f5e", "#6cc3a6"], blue: ["#2f5fa8", "#7aa7ee"], purple: ["#6a4bb3", "#a98ff0"], pink: ["#a63f72", "#ef8fbd"],
+    orange: ["#a8561f", "#f0a36b"], teal: ["#1a6c76", "#63c8d2"], graphite: ["#4a4a4a", "#b5b5b5"] }[settings.accent];
+  const root = document.documentElement;
+  if (settings.theme === "light" || settings.theme === "dark") root.dataset.theme = settings.theme;
   if (!acc) return;
-  const dark = matchMedia("(prefers-color-scheme: dark)").matches, c = dark ? acc[1] : acc[0];
+  const dark = settings.theme === "dark" || (settings.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches), c = dark ? acc[1] : acc[0];
+  root.style.setProperty("--accent-deep", acc[0]);
+  root.style.setProperty("--on-accent", dark ? "#0f1412" : "#fff");
   document.documentElement.style.setProperty("--accent", c);
   document.documentElement.style.setProperty("--accent-2", c + "22");
 }).catch(() => {});
@@ -96,7 +136,7 @@ api("/api/settings").then(({ settings }) => {
 function draftMode() {
   let ctx = null, cur = null, busy = false, seq = 0;
   $("#root").innerHTML = `<div class="wrap">
-    <div class="bar"><div class="logo">◐</div><div class="grow" id="where">Draft</div><button class="x" id="x" title="Close (Esc)">×</button></div>
+    <div class="bar"><span class="mark" aria-hidden="true"><svg><use href="#glint-glyph"/></svg></span><div class="grow" id="where">Draft</div><button class="x" id="x" title="Close (Esc)" aria-label="Close">×</button></div>
     <div class="body"><div class="status" id="st"></div><textarea class="draft" id="txt" spellcheck="true" hidden></textarea></div>
     <div class="acts">
       <button class="btn primary" id="ins" disabled>Insert</button>
@@ -172,7 +212,7 @@ function cardMode() {
     const a = card.actions || [];
     const pv = a.find((x) => x.preview);
     $("#root").innerHTML = `<div class="wrap">
-      <div class="bar"><div class="logo">◐</div><div class="grow"><span class="kind">${esc(card.kind || "suggestion")}</span>${card.app ? ` · ${esc(card.app)}` : ""}</div><button class="x" id="x" title="Dismiss (Esc)">×</button></div>
+      <div class="bar"><span class="mark" aria-hidden="true"><svg><use href="#glint-glyph"/></svg></span><div class="grow"><span class="kind">${esc(card.kind || "suggestion")}</span>${card.app ? ` · ${esc(card.app)}` : ""}</div><button class="x" id="x" title="Dismiss (Esc)" aria-label="Dismiss">×</button></div>
       <div class="body"><h3>${esc(card.title)}</h3><div class="card-body">${esc(card.body)}</div>${pv ? `<div class="preview">${esc(pv.preview)}</div>` : ""}</div>
       <div class="acts">${a.map((x, i) => `<button class="btn ${i ? "" : "primary"}" data-a="${esc(x.id)}" title="${esc(x.url || "")}">${esc(x.label)}</button>`).join("")}
         <button class="btn" id="ask">Ask about this</button><button class="btn" id="dis">Not useful</button></div>
@@ -211,14 +251,14 @@ function edgeMode() {
   const OUT = { inserted: "inserted", applied: "inserted", copied: "copied", opened: "opened", dismissed: "dismissed", ignored: "missed", undone: "undone", stale: "stale", failed: "failed", drafted: "drafted", offered: "offered", shown: "seen" };
   const ago = (ms) => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? "now" : m < 60 ? `${m}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`; };
   $("#root").innerHTML = `<div class="wrap">
-    <div class="bar"><div class="logo">◐</div><div class="grow" id="where">Assist</div><button class="x" id="x" title="Close (Esc)">×</button></div>
+    <div class="bar"><span class="mark" aria-hidden="true"><svg><use href="#glint-glyph"/></svg></span><div class="grow" id="where">Assist</div><button class="x" id="x" title="Close (Esc)" aria-label="Close">×</button></div>
     <div class="grid">
       <button class="qa" data-k="d"><b>Draft here</b><span>Write for the focused field · D</span></button>
       <button class="qa" data-k="a"><b>Quick Ask</b><span>Ask about your screen · A</span></button>
       <button class="qa" data-k="s"><b>Suggest now</b><span>Look for something useful · S</span></button>
       <button class="qa" data-k="p"><b id="pauseLabel">Pause suggestions</b><span id="pauseSub">For one hour · P</span></button>
     </div>
-    <div class="sect" style="display:flex;justify-content:space-between"><span>Recent</span><a href="#" id="all" style="color:var(--accent);text-decoration:none;text-transform:none;letter-spacing:0">All history · O</a></div>
+    <div class="sect" style="display:flex;justify-content:space-between"><span>Recent</span><a href="#" id="all" style="color:var(--accent);text-decoration:none">All history <kbd>O</kbd></a></div>
     <div class="list" id="list"><div class="empty">Loading…</div></div></div>`;
   let items = [];
   async function load() {

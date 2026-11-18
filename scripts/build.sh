@@ -1,38 +1,24 @@
 #!/usr/bin/env bash
-# Build Glint.app (native shell) and the capture helper. Usage: scripts/build.sh [--open]
+# Dev build: build/Glint.app runs the engine from this checkout (.venv + engine/), plus the helpers in bin/.
+# Usage: scripts/build.sh [--open]. For a self-contained, distributable app use scripts/package.sh.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP="$ROOT/build/Glint.app"
 IDENTITY="${GLINT_SIGN_IDENTITY:-Glint Local Signing}"
+TARGET="arm64-apple-macos${GLINT_MIN_MACOS:-13.4}"
 
 [ -x "$ROOT/.venv/bin/python" ] || { echo "Missing $ROOT/.venv. Run scripts/setup.sh first."; exit 1; }
 
 mkdir -p "$ROOT/bin" "$APP/Contents/MacOS" "$APP/Contents/Resources"
-swiftc -O "$ROOT/mac/capture/GlintCapture.swift" -o "$ROOT/bin/glint-capture"
-swiftc -O "$ROOT/mac/llm/GlintLLM.swift" -o "$ROOT/bin/glint-llm" -framework FoundationModels
-swiftc -O "$ROOT"/mac/*.swift -o "$APP/Contents/MacOS/Glint" \
+swiftc -O -target "$TARGET" "$ROOT/mac/capture/GlintCapture.swift" -o "$ROOT/bin/glint-capture"
+swiftc -O -target arm64-apple-macos26.0 "$ROOT/mac/llm/GlintLLM.swift" -o "$ROOT/bin/glint-llm" -framework FoundationModels
+swiftc -O -target "$TARGET" "$ROOT"/mac/*.swift -o "$APP/Contents/MacOS/Glint" \
   -framework AppKit -framework WebKit -framework Carbon -framework AVFoundation -framework Speech \
   -framework ServiceManagement -framework UserNotifications
 
-cat > "$APP/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>CFBundleName</key><string>Glint</string>
-  <key>CFBundleDisplayName</key><string>Glint</string>
-  <key>CFBundleIdentifier</key><string>dev.glint.Glint</string>
-  <key>CFBundleExecutable</key><string>Glint</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.1.0</string>
-  <key>CFBundleVersion</key><string>1</string>
-  <key>LSMinimumSystemVersion</key><string>13.0</string>
-  <key>NSHighResolutionCapable</key><true/>
-  <key>NSMicrophoneUsageDescription</key><string>Glint uses the microphone only while you hold Control+Option to dictate.</string>
-  <key>NSSpeechRecognitionUsageDescription</key><string>Glint can transcribe dictation on this Mac when no OpenAI key is set.</string>
-  <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
-  <key>GlintProjectRoot</key><string>$ROOT</string>
-</dict></plist>
-PLIST
+"$ROOT/scripts/info-plist.sh" "$APP/Contents/Info.plist" "$ROOT"
+[ -f "$APP/Contents/Resources/Glint.icns" ] && [ ! "$ROOT/mac/AppIcon.svg" -nt "$APP/Contents/Resources/Glint.icns" ] \
+  || "$ROOT/scripts/make-icon.sh" "$APP/Contents/Resources/Glint.icns"
 
 if security find-certificate -c "$IDENTITY" >/dev/null 2>&1 \
    && codesign --force -s "$IDENTITY" "$ROOT/bin/glint-capture" 2>/dev/null \

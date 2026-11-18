@@ -3,314 +3,556 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>Glint</title>
 <style>
+/* ==========================================================================
+   Glint design system. One place for every token; feature UIs (web/features)
+   use these variables, and quick.html / features/assist.html carry a copy.
+   ========================================================================== */
 :root, :root[data-theme="light"] {
-  --bg: #f6f5f2; --side: #efede8; --panel: #ffffff; --panel-2: #f8f7f4; --line: #e4e1da;
-  --text: #1d1b18; --muted: #75716a; --faint: #a39f97;
-  --accent: #2f6f5e; --accent-2: #e6f0ec; --warn: #b5651d; --danger: #c0392b; --danger-2: #fbe9e7;
-  --hl: #fff0b3; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.06);
-  --radius: 14px;
+  color-scheme: light;
+  /* surfaces */
+  --bg: #fbfbfa; --side: #f3f3f1; --panel: #ffffff; --panel-2: #f4f4f2; --panel-3: #e9e9e6;
+  --raised: #ffffff; --nav-on: rgba(20,20,15,.065); --hover: rgba(20,20,15,.04);
+  /* hairlines */
+  --line: rgba(20,20,15,.09); --line-2: rgba(20,20,15,.15);
+  /* text (all ≥ 4.5:1 on every surface) */
+  --text: #1b1b19; --muted: #595954; --faint: #6b6b66;
+  /* accent family (overridden per user accent by applyLook) */
+  --accent: #2f6f5e; --accent-2: #2f6f5e1f; --on-accent: #ffffff; --accent-ring: #2f6f5e40; --accent-deep: #2f6f5e;
+  --spark: #f2b84b;
+  /* status */
+  --ok: #1a7550; --warn: #9a5a00; --danger: #c4372b; --danger-2: #fbeae7; --hl: #fff0b0;
+  /* elevation */
+  --shadow-xs: 0 1px 1px rgba(20,20,15,.04);
+  --shadow: 0 0 0 .5px rgba(20,20,15,.03), 0 1px 2px rgba(20,20,15,.04), 0 4px 14px rgba(20,20,15,.035);
+  --shadow-pop: 0 0 0 .5px rgba(20,20,15,.08), 0 12px 32px rgba(20,20,15,.14), 0 3px 8px rgba(20,20,15,.06);
+  --inset-hl: inset 0 1px 0 rgba(255,255,255,.7);
+  /* shape */
+  --r-xs: 5px; --r-sm: 7px; --r-md: 9px; --r-lg: 12px; --r-xl: 16px; --radius: 12px;
+  /* type */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --fs-xs: 11px; --fs-sm: 12px; --fs-base: 13.5px; --fs-md: 14.5px; --fs-lg: 16px; --fs-xl: 20px; --fs-2xl: 26px;
+  /* spacing (4px grid) */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s7: 32px; --s8: 40px;
+  /* motion */
+  --ease: cubic-bezier(.2,.8,.2,1); --ease-out: cubic-bezier(.16,1,.3,1); --t-fast: 120ms; --t-med: 220ms;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-    --bg: #141412; --side: #1b1a18; --panel: #201f1c; --panel-2: #262521; --line: #33312c;
-    --text: #ecebe7; --muted: #a29e95; --faint: #6f6b63;
-    --accent: #6cc3a6; --accent-2: #1f3530; --warn: #e2a25a; --danger: #ff7a6b; --danger-2: #3a1f1c;
-    --hl: #4d4318; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  color-scheme: dark;
+  --bg: #151514; --side: #1b1b1a; --panel: #1f1f1e; --panel-2: #272726; --panel-3: #323230;
+  --raised: #2b2b29; --nav-on: rgba(255,255,255,.075); --hover: rgba(255,255,255,.045);
+  --line: rgba(255,255,255,.075); --line-2: rgba(255,255,255,.13);
+  --text: #ededea; --muted: #a6a6a1; --faint: #8f8f8a;
+  --accent: #6cc3a6; --accent-2: #6cc3a626; --on-accent: #0f1412; --accent-ring: #6cc3a64d;
+  --ok: #4cc38a; --warn: #e5a75a; --danger: #ff7b6e; --danger-2: #3a1f1c; --hl: #5a4a12;
+  --shadow-xs: 0 1px 1px rgba(0,0,0,.3);
+  --shadow: 0 0 0 .5px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.3), 0 6px 18px rgba(0,0,0,.22);
+  --shadow-pop: 0 0 0 .5px rgba(0,0,0,.6), 0 16px 40px rgba(0,0,0,.5), 0 3px 8px rgba(0,0,0,.3);
+  --inset-hl: inset 0 1px 0 rgba(255,255,255,.04);
 } }
 :root[data-theme="dark"] {
-  --bg: #141412; --side: #1b1a18; --panel: #201f1c; --panel-2: #262521; --line: #33312c;
-  --text: #ecebe7; --muted: #a29e95; --faint: #6f6b63; --accent: #6cc3a6; --accent-2: #1f3530;
-  --warn: #e2a25a; --danger: #ff7a6b; --danger-2: #3a1f1c; --hl: #4d4318;
-  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  color-scheme: dark;
+  --bg: #151514; --side: #1b1b1a; --panel: #1f1f1e; --panel-2: #272726; --panel-3: #323230;
+  --raised: #2b2b29; --nav-on: rgba(255,255,255,.075); --hover: rgba(255,255,255,.045);
+  --line: rgba(255,255,255,.075); --line-2: rgba(255,255,255,.13);
+  --text: #ededea; --muted: #a6a6a1; --faint: #8f8f8a;
+  --accent: #6cc3a6; --accent-2: #6cc3a626; --on-accent: #0f1412; --accent-ring: #6cc3a64d;
+  --ok: #4cc38a; --warn: #e5a75a; --danger: #ff7b6e; --danger-2: #3a1f1c; --hl: #5a4a12;
+  --shadow-xs: 0 1px 1px rgba(0,0,0,.3);
+  --shadow: 0 0 0 .5px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.3), 0 6px 18px rgba(0,0,0,.22);
+  --shadow-pop: 0 0 0 .5px rgba(0,0,0,.6), 0 16px 40px rgba(0,0,0,.5), 0 3px 8px rgba(0,0,0,.3);
+  --inset-hl: inset 0 1px 0 rgba(255,255,255,.04);
 }
+
+/* ---------- base ---------- */
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--text); overflow: hidden;
-  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; }
+  font: var(--fs-base)/1.5 var(--font); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+::selection { background: var(--accent-ring); }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; text-underline-offset: 2px; }
+h1, h2, h3, h4 { text-wrap: balance; }
+p { text-wrap: pretty; }
 button, input, select, textarea { font: inherit; color: inherit; }
-button { cursor: pointer; border: 1px solid var(--line); background: var(--panel); border-radius: 9px; padding: 7px 12px; }
-button:hover:not(:disabled) { border-color: var(--accent); }
+svg { flex: none; }
+
+/* buttons */
+button { cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px;
+  border: 1px solid var(--line-2); background: var(--raised); border-radius: var(--r-sm); padding: 5px 12px;
+  font-size: 13px; font-weight: 500; line-height: 1.2; box-shadow: var(--shadow-xs), var(--inset-hl);
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast); }
+button:hover:not(:disabled) { background: var(--panel-2); }
+button:active:not(:disabled) { transform: translateY(.5px); }
 button:disabled { opacity: .5; cursor: default; }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-button.ghost { border-color: transparent; background: transparent; color: var(--muted); }
-button.ghost:hover { color: var(--text); background: var(--panel-2); }
+button svg { width: 15px; height: 15px; }
+button.primary { background: var(--accent); border-color: transparent; color: var(--on-accent);
+  box-shadow: var(--shadow-xs), inset 0 1px 0 rgba(255,255,255,.18); }
+button.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.07); }
+button.ghost { border-color: transparent; background: transparent; color: var(--muted); box-shadow: none; }
+button.ghost:hover:not(:disabled) { color: var(--text); background: var(--hover); }
 button.danger { color: var(--danger); }
-button.danger.solid { background: var(--danger); border-color: var(--danger); color: #fff; }
-input[type=text], input[type=password], input[type=number], input[type=search], select, textarea {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; outline: none; }
-input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-2); }
-code { font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel-2); padding: 1px 5px; border-radius: 5px; }
-mark { background: var(--hl); color: inherit; border-radius: 3px; }
+button.danger.solid { background: var(--danger); border-color: transparent; color: #fff; }
+button.icon { min-height: 28px; width: 28px; padding: 0; }
 
-.app { display: grid; grid-template-columns: 216px 1fr; height: 100vh; }
-.side { position: relative; background: var(--side); border-right: 1px solid var(--line); padding: 38px 10px 12px; display: flex; flex-direction: column; gap: 2px; -webkit-app-region: drag; }
-.brand { display: flex; align-items: center; gap: 8px; padding: 0 10px 14px; font-weight: 650; letter-spacing: -.01em; }
-.brand .logo { width: 22px; height: 22px; border-radius: 7px; background: var(--accent); display: grid; place-items: center; color: #fff; font-size: 13px; }
-.nav { -webkit-app-region: no-drag; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px; color: var(--muted); cursor: pointer; user-select: none; }
-.nav:hover { background: var(--panel-2); color: var(--text); }
-.nav.on { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
-.nav svg { width: 17px; height: 17px; flex: none; }
-.side .grow { flex: 1; }
-.cap { -webkit-app-region: no-drag; margin: 6px 4px 0; padding: 10px; border-radius: 11px; background: var(--panel); border: 1px solid var(--line); font-size: 12px; }
-.cap .row { display: flex; align-items: center; gap: 7px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
-.dot.live { background: #2fae7c; box-shadow: 0 0 0 3px rgba(47,174,124,.18); }
+/* fields */
+input[type=text], input[type=password], input[type=number], input[type=search], input:not([type]), select, textarea {
+  background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--r-sm); padding: 6px 10px; outline: none;
+  min-height: 30px; transition: border-color var(--t-fast), box-shadow var(--t-fast); }
+input::placeholder, textarea::placeholder { color: var(--faint); }
+select { -webkit-appearance: none; appearance: none; padding-right: 28px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.75 5 6.75l3-3' fill='none' stroke='%23888' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+input[type=checkbox], input[type=radio], input[type=range] { accent-color: var(--accent); }
+input[type=search]::-webkit-search-cancel-button { opacity: .5; }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; }
+code, kbd { font: 12px var(--mono); background: var(--panel-2); padding: 1px 5px; border-radius: var(--r-xs); }
+kbd { display: inline-block; min-width: 18px; text-align: center; border: 1px solid var(--line-2); border-bottom-width: 1.5px;
+  background: var(--panel); color: var(--muted); font-size: 11px; line-height: 16px; padding: 0 4px; }
+mark { background: var(--hl); color: inherit; border-radius: 3px; padding: 0 1px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* settings-style switches for checkboxes inside settings rows */
+.field label > input[type=checkbox] { -webkit-appearance: none; appearance: none; flex: none; position: relative; width: 30px; height: 18px;
+  margin: 0 9px 0 0; border-radius: 999px; background: var(--panel-3); vertical-align: -4px; cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--line); transition: background var(--t-med) var(--ease); }
+.field label > input[type=checkbox]::before { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25), 0 0 0 .5px rgba(0,0,0,.06); transition: transform var(--t-med) var(--ease-out); }
+.field label > input[type=checkbox]:checked { background: var(--accent); box-shadow: none; }
+.field label > input[type=checkbox]:checked::before { transform: translateX(12px); }
+.field label > input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.field .ctl > label { display: inline-flex; align-items: baseline; }
+.field .ctl > label > input[type=checkbox] { align-self: flex-start; margin-top: 1px; }
+
+/* ---------- logo ---------- */
+.mark { position: relative; flex: none; width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; color: #fff;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent-deep) 72%, #fff 28%), color-mix(in srgb, var(--accent-deep) 80%, #000 20%));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), inset 0 0 0 .5px rgba(255,255,255,.1), 0 1px 2px rgba(0,0,0,.18); }
+.mark svg { width: 72%; height: 72%; }
+
+/* ---------- layout + sidebar ---------- */
+.app { display: grid; grid-template-columns: 224px 1fr; height: 100vh; }
+.side { position: relative; background: var(--side); border-right: 1px solid var(--line); padding: 46px 10px 12px; display: flex; flex-direction: column; gap: 1px; -webkit-app-region: drag; overflow-y: auto; }
+.brand { display: flex; align-items: center; gap: 9px; padding: 0 9px 16px; font-weight: 650; font-size: 15px; letter-spacing: -.015em; }
+.brand .ver { margin-left: auto; font-size: 10.5px; font-weight: 600; color: var(--faint); letter-spacing: .02em; }
+.nav-sec { padding: 14px 10px 4px; font-size: 11px; font-weight: 600; color: var(--faint); letter-spacing: .01em; }
+.nav-sec:has(+ .nav-group:empty) { display: none; }
+.nav-group { display: flex; flex-direction: column; gap: 1px; }
+.nav { -webkit-app-region: no-drag; display: flex; align-items: center; gap: 9px; width: 100%; min-height: 30px; padding: 5px 9px; border: 0; border-radius: var(--r-sm);
+  background: transparent; box-shadow: none; color: var(--muted); font-size: 13.5px; font-weight: 500; text-align: left; justify-content: flex-start; cursor: pointer; user-select: none; }
+.nav:hover:not(.on) { background: var(--hover); color: var(--text); }
+.nav.on { background: var(--nav-on); color: var(--text); }
+.nav.on svg { color: var(--accent); }
+.nav svg { width: 17px; height: 17px; flex: none; opacity: .9; }
+.nav:active { transform: none; }
+.side .grow { flex: 1; min-height: 12px; }
+.cap { -webkit-app-region: no-drag; margin: 8px 0 0; padding: 10px 11px 11px; border-radius: var(--r-lg); background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); font-size: 12px; }
+.cap .row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.cap .row b { font-weight: 600; }
+.dot { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
+.dot.live { background: var(--ok); }
+.dot.live::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 1.5px solid var(--ok); opacity: 0; animation: ping 2.4s var(--ease-out) infinite; }
 .dot.paused { background: var(--warn); }
-.cap .what { color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cap .acts { display: flex; gap: 6px; margin-top: 8px; }
-.cap .acts button { padding: 4px 8px; font-size: 12px; flex: 1; }
+@keyframes ping { 0% { transform: scale(.6); opacity: .7; } 70%, 100% { transform: scale(1.5); opacity: 0; } }
+.cap .what { color: var(--muted); margin: 3px 0 0 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cap .what:empty { display: none; }
+.cap .acts { display: flex; gap: 6px; margin-top: 9px; }
+.cap .acts button { min-height: 26px; padding: 3px 8px; font-size: 12px; flex: 1; }
 
-main { overflow: auto; height: 100vh; }
-.view { display: none; padding: 34px 32px 48px; max-width: 1080px; margin: 0 auto; }
-.view.on { display: block; }
-.head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
-.head h1 { margin: 0; font-size: 26px; letter-spacing: -.02em; }
-.head .sub { color: var(--muted); margin-top: 2px; }
+main { overflow: auto; height: 100vh; scroll-padding-top: 24px; }
+.view { display: none; padding: 40px 40px 64px; max-width: 1120px; margin: 0 auto; }
+.view.on { display: block; animation: viewIn var(--t-med) var(--ease-out); }
+@keyframes viewIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
+.head h1 { margin: 0; font-size: var(--fs-2xl); line-height: 1.15; font-weight: 680; letter-spacing: -.025em; }
+.head .sub { color: var(--muted); margin-top: 4px; font-size: 13.5px; }
+.head > .chips { gap: 8px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.card-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 600; font-size: 13.5px; }
+.card-title .muted { font-weight: 400; font-size: 12px; }
 .muted { color: var(--muted); }
-.empty { padding: 40px 20px; text-align: center; color: var(--muted); }
-.chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 9px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.faint { color: var(--faint); }
+.chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; font-size: 12px; font-weight: 500; padding: 0 9px; border-radius: 999px;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip .dot { width: 7px; height: 7px; }
 .chip.accent { background: var(--accent-2); color: var(--accent); border-color: transparent; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.banner { padding: 12px 14px; border-radius: 12px; background: var(--danger-2); color: var(--danger); margin-bottom: 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between; }
-.banner.info { background: var(--accent-2); color: var(--accent); }
-
-/* Today */
-.tiles { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 16px; }
-.tile { padding: 14px 16px; }
-.tile b { display: block; font-size: 22px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.tile span { color: var(--muted); font-size: 12px; }
-.timeline { padding: 16px; margin-bottom: 16px; }
-.bar { position: relative; height: 34px; border-radius: 8px; background: var(--panel-2); overflow: hidden; margin: 10px 0 6px; }
-.seg { position: absolute; top: 0; bottom: 0; min-width: 2px; opacity: .9; }
-.seg:hover { opacity: 1; outline: 2px solid var(--text); z-index: 2; }
-.hours { display: flex; justify-content: space-between; color: var(--faint); font-size: 11px; }
-.legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--muted); }
-.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
-.split { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-.sess { padding: 16px 18px; margin-bottom: 12px; }
-.sess-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
-.sess h3 { margin: 0; font-size: 16px; letter-spacing: -.01em; }
-.sess .when { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
-.sess p { margin: 10px 0 0; }
-.ins { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
-.ins li { padding: 10px 12px; border-radius: 10px; background: var(--panel-2); }
-.ins b { display: block; }
-.ins span { color: var(--muted); font-size: 13px; }
-.focus { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-weight: 650; font-size: 13px; flex: none;
-  background: conic-gradient(var(--accent) calc(var(--v) * 1%), var(--panel-2) 0); position: relative; }
-.focus::after { content: attr(data-v); position: absolute; inset: 5px; border-radius: 50%; background: var(--panel); display: grid; place-items: center; }
-.sess-acts { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
-.sess-acts button { padding: 4px 10px; font-size: 12.5px; }
-.caps { margin-top: 10px; max-height: 260px; overflow: auto; border-top: 1px solid var(--line); }
-.caps div { display: grid; grid-template-columns: 54px 110px 1fr; gap: 8px; padding: 5px 2px; font-size: 12.5px; border-bottom: 1px solid var(--line); }
-.apps { padding: 16px; }
-.approw { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; margin-bottom: 10px; font-size: 13px; }
-.approw .track { grid-column: 1 / -1; height: 6px; border-radius: 4px; background: var(--panel-2); overflow: hidden; }
-.approw .track i { display: block; height: 100%; border-radius: 4px; }
-
-/* Ask */
-#v-ask.on { display: grid; grid-template-columns: 230px 1fr; gap: 0; max-width: none; padding: 0; height: 100vh; }
-.threads { border-right: 1px solid var(--line); padding: 34px 10px 12px; overflow: auto; }
-.threads .t { padding: 8px 10px; border-radius: 9px; cursor: pointer; color: var(--muted); display: flex; gap: 6px; align-items: center; }
-.threads .t span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.threads .t:hover { background: var(--panel-2); color: var(--text); }
-.threads .t.on { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
-.threads .t button { display: none; padding: 0 6px; border: 0; background: none; color: var(--faint); }
-.threads .t:hover button { display: block; }
-.chat { display: flex; flex-direction: column; height: 100vh; min-width: 0; }
-.msgs { flex: 1; overflow: auto; padding: 34px 0 20px; }
-.msgs .inner { max-width: 760px; margin: 0 auto; padding: 0 28px; }
-.msg { margin-bottom: 22px; }
-.msg.user .bubble { background: var(--accent-2); padding: 10px 14px; border-radius: 14px 14px 4px 14px; margin-left: auto; max-width: 80%; width: fit-content; white-space: pre-wrap; }
-.msg.assistant .bubble { line-height: 1.6; }
-.bubble p { margin: 0 0 10px; } .bubble p:last-child { margin-bottom: 0; }
-.bubble ul, .bubble ol { margin: 6px 0 10px; padding-left: 22px; }
-.bubble pre { background: var(--panel-2); border: 1px solid var(--line); padding: 10px 12px; border-radius: 10px; overflow: auto; }
-.bubble pre code { background: none; padding: 0; }
-.bubble h3, .bubble h4 { margin: 12px 0 6px; }
-.toolchips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chip button { min-height: 0; border: 0; background: none; box-shadow: none; padding: 0 0 0 2px !important; color: var(--faint); }
+.chip button:hover:not(:disabled) { background: none; color: var(--danger); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.banner { padding: 11px 12px 11px 14px; border-radius: var(--r-lg); background: var(--danger-2); color: var(--danger); margin-bottom: 16px;
+  display: flex; gap: 12px; align-items: center; justify-content: space-between; font-weight: 500; border: 1px solid color-mix(in srgb, var(--danger) 18%, transparent); }
+.banner.info { background: var(--accent-2); color: var(--text); border-color: color-mix(in srgb, var(--accent) 20%, transparent); }
+.banner.info::before { content: ""; width: 16px; height: 16px; flex: none; background: var(--accent); margin-right: -4px;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5c.5 4.9 2.6 7 7.5 7.5-4.9.5-7 2.6-7.5 7.5-.5-4.9-2.6-7-7.5-7.5 4.9-.5 7-2.6 7.5-7.5Z'/%3E%3C/svg%3E") center / contain no-repeat; }
+.banner.info > span { flex: 1; }
 .err { color: var(--danger); }
-.suggest { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 18px; }
-.suggest button { text-align: left; padding: 12px 14px; border-radius: 12px; color: var(--muted); }
-.composer { padding: 12px 28px 22px; }
-.composer .box { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; padding: 8px; }
-.composer textarea { flex: 1; border: 0; box-shadow: none !important; resize: none; max-height: 200px; min-height: 24px; padding: 6px 8px; background: transparent; }
-.typing::after { content: "▍"; animation: blink 1s steps(2) infinite; color: var(--accent); }
-@keyframes blink { 50% { opacity: 0; } }
+.ok { color: var(--ok); font-size: 12.5px; font-weight: 500; }
 
-/* Memory */
-.controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-.controls input[type=search] { flex: 1 1 280px; padding: 10px 12px; font-size: 15px; }
-.mem { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 14px; }
-.mlist { max-height: calc(100vh - 290px); min-height: 320px; overflow: auto; padding: 6px; }
-.mrow { display: grid; grid-template-columns: 20px 30px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 9px; border-radius: 10px; cursor: pointer; }
-.mrow:hover { background: var(--panel-2); } .mrow.on { background: var(--accent-2); }
-.ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 13px; }
-.ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mprev { padding: 18px; max-height: calc(100vh - 290px); min-height: 320px; overflow: auto; }
-.mtext { white-space: pre-wrap; word-break: break-word; background: var(--panel-2); border-radius: 10px; padding: 12px; font-size: 13px; margin-top: 10px; }
-.mmeta { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+/* empty states + skeletons */
+.empty { padding: 40px 24px; text-align: center; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.empty .art { width: 72px; height: 72px; margin-bottom: 10px; color: var(--accent); }
+.empty b { color: var(--text); font-size: 14.5px; font-weight: 600; }
+.empty p { margin: 2px 0 0; max-width: 380px; font-size: 13px; }
+.empty .acts { display: flex; gap: 8px; margin-top: 14px; }
+.skel { display: block; height: 12px; border-radius: 6px; margin: 10px 0; max-width: 100%;
+  background: linear-gradient(90deg, var(--panel-2) 0%, var(--panel-3) 40%, var(--panel-2) 80%) 0 0 / 300% 100%; animation: shimmer 1.4s linear infinite; }
+.skel.t { height: 15px; width: 55%; } .skel.s { width: 35%; }
+.skel-card { padding: 18px; margin-bottom: 12px; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -50% 0; } }
 
-/* Tasks + settings */
-.task { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); align-items: start; }
-.task:last-child { border-bottom: 0; }
-.task.done .tt { text-decoration: line-through; color: var(--muted); }
-.task .notes { color: var(--muted); font-size: 12.5px; white-space: pre-wrap; margin-top: 2px; }
-.sect { padding: 18px 20px; margin-bottom: 14px; }
-.sect h2 { margin: 0 0 4px; font-size: 16px; }
-.sect > .muted { margin: 0 0 14px; font-size: 13px; }
-.field { display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
-.field:first-of-type { border-top: 0; }
-.field label { color: var(--muted); }
-.field .ctl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.seg-ctl { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
-.seg-ctl button { border: 0; border-radius: 0; padding: 7px 14px; }
-.seg-ctl button.on { background: var(--accent); color: #fff; }
-.ok { color: var(--accent); font-size: 12.5px; }
-.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; }
-.toast.on { opacity: 1; }
-.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; place-items: center; z-index: 10; padding: 16px; }
-.modal-bg.on { display: grid; }
-.modal { padding: 20px; max-width: 420px; width: 100%; }
-.modal h3 { margin: 0 0 6px; }
-.modal .acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-.qbars { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin-top: 12px; }
-.qbar span { font-size: 11.5px; color: var(--muted); display: flex; justify-content: space-between; }
-.qbar .track { height: 5px; border-radius: 3px; background: var(--panel-2); margin-top: 4px; overflow: hidden; }
+/* ---------- Today ---------- */
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 16px; }
+.tile { padding: 14px 16px 15px; display: flex; flex-direction: column-reverse; justify-content: flex-end; gap: 6px; min-width: 0; }
+.tile b { display: block; font-size: 24px; line-height: 1.1; font-weight: 650; letter-spacing: -.025em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile span { color: var(--muted); font-size: 12px; font-weight: 500; }
+.timeline { padding: 16px 18px 14px; margin-bottom: 16px; }
+.bar { position: relative; height: 36px; border-radius: var(--r-md); overflow: hidden; margin: 12px 0 7px;
+  background: repeating-linear-gradient(90deg, transparent 0 calc(12.5% - 1px), var(--line) calc(12.5% - 1px) 12.5%), var(--panel-2); }
+.seg { position: absolute; top: 5px; bottom: 5px; min-width: 3px; border-radius: 3px; opacity: .92; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.08); transition: opacity var(--t-fast), transform var(--t-fast); }
+.seg:hover { opacity: 1; transform: scaleY(1.12); z-index: 2; }
+.hours { display: flex; justify-content: space-between; color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.legend { display: flex; gap: 6px 14px; flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 8px; height: 8px; border-radius: 3px; margin-right: 6px; vertical-align: 0; }
+.split { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.sess { padding: 16px 18px; margin-bottom: 12px; transition: border-color var(--t-fast); }
+.sess-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.sess h3 { margin: 0; font-size: 15px; font-weight: 620; letter-spacing: -.012em; }
+.sess .when { color: var(--muted); font-size: 12.5px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.sess p { margin: 10px 0 0; color: var(--text); }
+.ins { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.ins li { position: relative; padding: 10px 12px 10px 34px; border-radius: var(--r-md); background: var(--panel-2); }
+.ins li::before { content: ""; position: absolute; left: 12px; top: 12px; width: 14px; height: 14px; background: var(--spark);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5c.5 4.9 2.6 7 7.5 7.5-4.9.5-7 2.6-7.5 7.5-.5-4.9-2.6-7-7.5-7.5 4.9-.5 7-2.6 7.5-7.5Z'/%3E%3C/svg%3E") center / contain no-repeat; }
+.ins b { display: block; font-weight: 600; }
+.ins span { color: var(--muted); font-size: 13px; }
+.focus { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-weight: 650; font-size: 13px; flex: none; font-variant-numeric: tabular-nums;
+  background: conic-gradient(var(--accent) calc(var(--v) * 1%), var(--panel-3) 0); position: relative; }
+.focus::after { content: attr(data-v); position: absolute; inset: 4px; border-radius: 50%; background: var(--panel); display: grid; place-items: center; }
+.sess-acts { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
+.sess-acts button { min-height: 26px; padding: 3px 10px; font-size: 12.5px; }
+.caps { margin-top: 12px; max-height: 260px; overflow: auto; border-top: 1px solid var(--line); }
+.caps div { display: grid; grid-template-columns: 58px 110px 1fr; gap: 8px; padding: 6px 2px; font-size: 12.5px; border-bottom: 1px solid var(--line); }
+.apps { padding: 16px 18px; }
+.approw { display: grid; grid-template-columns: 1fr auto; gap: 5px 10px; margin-bottom: 12px; font-size: 13px; }
+.approw .muted { font-variant-numeric: tabular-nums; font-size: 12.5px; }
+.approw .track { grid-column: 1 / -1; height: 5px; border-radius: 4px; background: var(--panel-2); overflow: hidden; }
+.approw .track i { display: block; height: 100%; border-radius: 4px; }
+.qbars { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-top: 14px; }
+.qbar span { font-size: 11.5px; color: var(--muted); display: flex; justify-content: space-between; text-transform: capitalize; }
+.qbar b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.qbar .track { height: 4px; border-radius: 3px; background: var(--panel-3); margin-top: 5px; overflow: hidden; }
 .qbar .track i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
-.note-in { width: 100%; margin-top: 10px; font-size: 13px; }
-.prog { height: 6px; border-radius: 4px; background: var(--panel-2); overflow: hidden; margin-top: 6px; }
-.prog i { display: block; height: 100%; background: var(--accent); }
-.task input[type=range] { width: 120px; }
-.feed-day { margin: 18px 0 8px; color: var(--muted); font-size: 12.5px; text-transform: uppercase; letter-spacing: .06em; }
-.feed-item { padding: 14px 16px; margin-bottom: 10px; }
-.feed-item .src { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
-.menu { position: absolute; bottom: 58px; left: 8px; right: 8px; padding: 6px; display: none; z-index: 5; }
-.menu.on { display: block; }
-.menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 7px 10px; }
-.menu button:hover { background: var(--panel-2); }
-.swatches { display: flex; gap: 8px; }
-.swatches button { width: 24px; height: 24px; border-radius: 50%; padding: 0; border: 2px solid transparent; }
-.swatches button.on { border-color: var(--text); }
-textarea.doc { width: 100%; min-height: 180px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.note-in { width: 100%; margin-top: 12px; font-size: 13px; background: var(--panel-2) !important; border-color: transparent !important; }
+.note-in:focus { background: var(--panel) !important; border-color: var(--accent) !important; }
+
+/* ---------- Ask ---------- */
+#v-ask.on { display: grid; grid-template-columns: 248px 1fr; gap: 0; max-width: none; padding: 0; height: 100vh; animation: none; }
+.threads { border-right: 1px solid var(--line); padding: 40px 10px 12px; overflow: auto; background: var(--bg); }
+.threads #newChat { width: 100%; margin-bottom: 14px; min-height: 32px; }
+.threads .lbl { padding: 0 10px 6px; font-size: 11px; font-weight: 600; color: var(--faint); }
+.threads .t { padding: 6px 6px 6px 10px; min-height: 32px; border-radius: var(--r-sm); cursor: pointer; color: var(--muted); display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.threads .t span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.threads .t:hover { background: var(--hover); color: var(--text); }
+.threads .t.on { background: var(--nav-on); color: var(--text); font-weight: 500; }
+.threads .t button { visibility: hidden; min-height: 22px; width: 22px; padding: 0; border: 0; background: none; box-shadow: none; color: var(--faint); font-size: 11px; }
+.threads .t:hover button, .threads .t button:focus-visible { visibility: visible; }
+.threads .t button:hover { color: var(--danger); background: var(--hover); }
+.chat { display: flex; flex-direction: column; height: 100vh; min-width: 0; background: var(--bg); }
+.msgs { flex: 1; overflow: auto; padding: 40px 0 24px; }
+.msgs .inner { max-width: 760px; margin: 0 auto; padding: 0 32px 0 72px; }
+.msg { position: relative; margin-bottom: 26px; animation: msgIn var(--t-med) var(--ease-out); }
+@keyframes msgIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.msg.user .bubble { background: var(--accent-2); padding: 9px 14px; border-radius: 16px 16px 5px 16px; margin-left: auto; max-width: 80%; width: fit-content; white-space: pre-wrap; }
+.msg.assistant::before { content: ""; position: absolute; left: -40px; top: 0; width: 26px; height: 26px; border-radius: 8px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent-deep) 72%, #fff 28%), color-mix(in srgb, var(--accent-deep) 80%, #000 20%));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 1px 2px rgba(0,0,0,.15); }
+.msg.assistant::after { content: ""; position: absolute; left: -40px; top: 0; width: 26px; height: 26px; background: #fff;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 32 32'%3E%3Cpath d='M17.05 13.32A6.6 6.6 0 1 1 10.68 6.95' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round'/%3E%3Cpath d='M17.45 2.65Q18.05 5.95 21.35 6.55 18.05 7.15 17.45 10.45 16.85 7.15 13.55 6.55 16.85 5.95 17.45 2.65Z'/%3E%3C/svg%3E") center / contain no-repeat; }
+.msg.assistant .bubble { line-height: 1.62; padding-top: 2px; font-size: 14px; }
+.bubble p { margin: 0 0 10px; } .bubble p:last-child { margin-bottom: 0; }
+.bubble ul, .bubble ol { margin: 6px 0 12px; padding-left: 22px; } .bubble li { margin: 3px 0; } .bubble li::marker { color: var(--faint); }
+.bubble pre { background: var(--panel-2); border: 1px solid var(--line); padding: 10px 12px; border-radius: var(--r-md); overflow: auto; font-size: 12.5px; }
+.bubble pre code { background: none; padding: 0; }
+.bubble h3, .bubble h4 { margin: 14px 0 6px; font-size: 14px; }
+.bubble a { text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--accent-ring); }
+.toolchips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.toolchips:empty { display: none; }
+.toolchips .chip { background: var(--panel); height: 24px; padding: 0 10px 0 8px; }
+.toolchips .chip::before { content: ""; width: 12px; height: 12px; background: var(--accent); flex: none;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='6.5'/%3E%3Cpath d='m20 20-4.2-4.2'/%3E%3C/svg%3E") center / contain no-repeat; }
+.typing:empty::before { content: "Thinking"; color: transparent; font-weight: 500;
+  background: linear-gradient(90deg, var(--faint) 0%, var(--text) 45%, var(--faint) 90%) 0 0 / 250% 100%; -webkit-background-clip: text; background-clip: text; animation: shimmer 1.6s linear infinite; }
+.typing:not(:empty)::after { content: ""; display: inline-block; width: 7px; height: 15px; margin-left: 3px; vertical-align: -2px; border-radius: 2px; background: var(--accent); animation: caret 1s var(--ease) infinite; }
+.typing > p:last-child { display: inline; }
+@keyframes caret { 0%, 100% { opacity: 1; } 50% { opacity: .2; } }
+.chat-hero { padding-top: 11vh; }
+.chat-hero .mark { width: 44px; height: 44px; border-radius: 13px; margin-bottom: 18px; }
+.chat-hero h1 { margin: 0; font-size: 26px; font-weight: 680; letter-spacing: -.025em; }
+.chat-hero .muted { margin-top: 4px; font-size: 14px; }
+.suggest { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 26px; }
+.suggest button { justify-content: flex-start; text-align: left; padding: 12px 14px; min-height: 52px; border-radius: var(--r-lg); color: var(--text); font-weight: 450; font-size: 13.5px; background: var(--panel); box-shadow: var(--shadow); gap: 10px; }
+.suggest button::before { content: ""; width: 16px; height: 16px; flex: none; background: var(--accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5c.5 4.9 2.6 7 7.5 7.5-4.9.5-7 2.6-7.5 7.5-.5-4.9-2.6-7-7.5-7.5 4.9-.5 7-2.6 7.5-7.5Z'/%3E%3C/svg%3E") center / contain no-repeat; }
+.suggest button:hover:not(:disabled) { background: var(--panel); border-color: var(--accent); }
+.composer { padding: 10px 32px 18px 72px; }
+.composer .box { max-width: 656px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; padding: 8px 8px 8px 6px; border-radius: var(--r-xl); box-shadow: var(--shadow-pop); transition: border-color var(--t-fast), box-shadow var(--t-fast); }
+.composer .box:focus-within { border-color: var(--accent); box-shadow: var(--shadow-pop), 0 0 0 3px var(--accent-ring); }
+.composer textarea { flex: 1; border: 0; box-shadow: none !important; resize: none; max-height: 200px; min-height: 30px; padding: 5px 8px; background: transparent; font-size: 14px; line-height: 1.45; }
+.composer #askSend { width: 32px; height: 32px; min-height: 32px; padding: 0; border-radius: 10px; flex: none; }
+.composer #askSend svg { width: 16px; height: 16px; }
+.composer .hint { max-width: 656px; margin: 8px auto 0; display: flex; gap: 14px; justify-content: center; color: var(--faint); font-size: 11.5px; }
+
+/* ---------- Memory ---------- */
+.controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+.search { position: relative; flex: 1 1 280px; display: flex; }
+.search::before { content: ""; position: absolute; left: 11px; top: 50%; width: 15px; height: 15px; margin-top: -7.5px; background: var(--faint); pointer-events: none;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='6.5'/%3E%3Cpath d='m20 20-4.2-4.2'/%3E%3C/svg%3E") center / contain no-repeat; }
+.search input { flex: 1; padding-left: 34px !important; min-height: 34px; font-size: 14px; }
+.controls > select { min-height: 34px; }
+.mem { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; }
+.mlist { max-height: calc(100vh - 270px); min-height: 320px; overflow: auto; padding: 6px; }
+.mrow { display: grid; grid-template-columns: 18px 30px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 8px 9px; border-radius: var(--r-md); cursor: pointer; }
+.mrow:hover { background: var(--hover); } .mrow.on { background: var(--accent-2); }
+.ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 13px; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.1); }
+.ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mprev { padding: 20px 22px; max-height: calc(100vh - 270px); min-height: 320px; overflow: auto; }
+.mprev h3, #tlPrev2 h3 { font-size: 17px; letter-spacing: -.015em; }
+.mtext { white-space: pre-wrap; word-break: break-word; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 12px 14px; font: 12.5px/1.6 var(--mono); margin-top: 12px; color: var(--text); }
+.mmeta { display: flex; gap: 12px; justify-content: space-between; align-items: center; color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+.mmeta label { display: inline-flex; gap: 8px; align-items: center; }
+.eyebrow { color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
 .mtab[hidden] { display: none; }
+.mtab:not([hidden]) { animation: viewIn var(--t-med) var(--ease-out); }
 .sb { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
-.slist { max-height: calc(100vh - 220px); overflow: auto; padding-right: 2px; }
-.sday { color: var(--muted); font-size: 12.5px; font-weight: 600; margin: 14px 4px 6px; }
+.slist { max-height: calc(100vh - 210px); overflow: auto; padding: 0 4px 8px 0; }
+.sday { color: var(--muted); font-size: 12px; font-weight: 600; margin: 18px 4px 7px; }
 .sday:first-child { margin-top: 0; }
 .sgroup { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 4px; box-shadow: var(--shadow); }
-.srow { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 10px 12px; border-radius: 10px; cursor: pointer; }
-.srow:hover { background: var(--panel-2); } .srow.on { background: var(--accent-2); }
+.srow { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; padding: 9px 11px; border-radius: var(--r-md); cursor: pointer; }
+.srow + .srow::before { content: ""; position: absolute; left: 11px; right: 11px; top: -.5px; height: 1px; background: var(--line); }
+.srow:hover { background: var(--hover); } .srow.on { background: var(--accent-2); }
+.srow:hover::before, .srow.on::before, .srow:hover + .srow::before, .srow.on + .srow::before { opacity: 0; }
 .srow .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.srow .tm, .srow .dur { color: var(--muted); font-size: 12.5px; text-align: right; white-space: nowrap; }
-.srow .sub { display: flex; gap: 6px; align-items: center; min-width: 0; color: var(--muted); font-size: 13px; }
-.srow .sub span.s { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.aic { position: relative; flex: none; width: 18px; height: 18px; border-radius: 5px; display: inline-grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; overflow: hidden; }
+.srow .tm, .srow .dur { color: var(--muted); font-size: 12px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.srow .sub { display: flex; gap: 5px; align-items: center; min-width: 0; color: var(--muted); font-size: 12.5px; }
+.srow .sub span.s { margin-left: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aic { position: relative; flex: none; width: 18px; height: 18px; border-radius: 5px; display: inline-grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; overflow: hidden; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.12); }
 .aic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: var(--panel); }
 .aic.lg { width: 22px; height: 22px; border-radius: 6px; font-size: 11px; }
-.sdetail { padding: 22px; max-height: calc(100vh - 220px); overflow: auto; position: sticky; top: 0; }
-.sdetail h2 { margin: 0; font-size: 21px; letter-spacing: -.02em; display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
-.sdetail .meta { color: var(--muted); margin: 6px 0 14px; }
-.sdetail h4 { margin: 18px 0 8px; font-size: 13px; color: var(--muted); }
-.sitechips { display: flex; flex-wrap: wrap; gap: 8px; }
-.sitechip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); font-size: 13px; }
-.sitechip .muted { font-size: 12px; }
-.rel { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 13.5px; }
-.rel:last-child { border-bottom: 0; } .rel:hover { color: var(--accent); }
-.askbox { display: flex; gap: 8px; margin-top: 18px; padding: 6px 6px 6px 12px; border: 1px solid var(--line); border-radius: 12px; }
-.askbox input { flex: 1; border: 0 !important; box-shadow: none !important; padding: 6px 0; background: transparent; }
-.tl { padding: 6px; max-height: calc(100vh - 220px); overflow: auto; }
-.tlhour { color: var(--faint); font-size: 12px; margin: 10px 8px 4px; }
-.tlrow { display: grid; grid-template-columns: 52px 22px 1fr auto; gap: 10px; align-items: center; padding: 7px 8px; border-radius: 9px; cursor: pointer; font-size: 13.5px; }
-.tlrow:hover { background: var(--panel-2); } .tlrow.on { background: var(--accent-2); }
+.sdetail { padding: 24px 24px 22px; max-height: calc(100vh - 210px); overflow: auto; position: sticky; top: 0; }
+.sdetail:empty { display: none; }
+.sdetail h2 { margin: 0; font-size: 21px; line-height: 1.25; font-weight: 680; letter-spacing: -.022em; display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
+.sdetail h2 button { min-height: 28px; width: 28px; padding: 0; }
+.sdetail .meta { color: var(--muted); margin: 6px 0 16px; font-size: 13px; }
+.sdetail h4 { margin: 22px 0 9px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+.sitechips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sitechip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 9px 4px 5px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel); font-size: 12.5px; font-weight: 500; }
+.sitechip .muted { font-size: 12px; font-weight: 400; }
+.rel { display: flex; justify-content: space-between; gap: 10px; padding: 8px 2px; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 13.5px; }
+.rel:last-of-type { border-bottom: 0; } .rel:hover { color: var(--accent); }
+.rel .muted { font-size: 12.5px; white-space: nowrap; }
+.askbox { display: flex; gap: 8px; margin-top: 20px; padding: 5px 5px 5px 12px; border: 1px solid var(--line-2); border-radius: var(--r-lg); background: var(--panel-2); transition: border-color var(--t-fast), box-shadow var(--t-fast); }
+.askbox:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); background: var(--panel); }
+.askbox input { flex: 1; border: 0 !important; box-shadow: none !important; padding: 5px 0; background: transparent; }
+.askbox button { min-height: 28px; }
+.tl { padding: 6px; max-height: calc(100vh - 210px); overflow: auto; }
+.tlhour { color: var(--faint); font-size: 11px; font-weight: 600; margin: 12px 9px 4px; font-variant-numeric: tabular-nums; }
+.tlrow { display: grid; grid-template-columns: 58px 20px 1fr auto; gap: 10px; align-items: center; padding: 6px 9px; border-radius: var(--r-sm); cursor: pointer; font-size: 13px; }
+.tlrow > .muted:first-child { font-variant-numeric: tabular-nums; }
+.tlrow:hover { background: var(--hover); } .tlrow.on { background: var(--accent-2); }
 .tlrow .muted { font-size: 12px; }
+.tlnav { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: var(--r-md); background: var(--panel-3); }
+.tlnav button { min-height: 28px; width: 28px; padding: 0; }
+.tlnav b { min-width: 140px; text-align: center; font-weight: 600; font-size: 13px; }
+
+/* ---------- Tasks, Insights ---------- */
+.addbar { padding: 6px 6px 6px 14px; margin-bottom: 14px; display: flex; gap: 8px; align-items: center; }
+.addbar::before { content: ""; width: 16px; height: 16px; flex: none; background: var(--faint);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E") center / contain no-repeat; }
+.addbar input { flex: 1; border: 0 !important; box-shadow: none !important; background: transparent; font-size: 14px; padding-left: 2px; }
+.task { display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); align-items: start; }
+.task:last-child { border-bottom: 0; }
+.task > input[type=checkbox] { width: 18px; height: 18px; margin: 1px 0 0; }
+.task .tt { font-weight: 550; }
+.task .tt .muted { font-weight: 500; font-variant-numeric: tabular-nums; margin-left: 4px; }
+.task.done .tt { text-decoration: line-through; text-decoration-color: var(--faint); color: var(--muted); }
+.task .notes { color: var(--muted); font-size: 12.5px; white-space: pre-wrap; margin-top: 8px; padding-left: 10px; border-left: 2px solid var(--line-2); }
+.task input[type=range] { width: 120px; }
+.task [data-log] { min-height: 26px; background: var(--panel-2); border-color: transparent; }
+.task [data-del] { min-height: 26px; width: 26px; padding: 0; visibility: hidden; }
+.task:hover [data-del], .task [data-del]:focus-visible { visibility: visible; }
+.prog { height: 4px; border-radius: 4px; background: var(--panel-3); overflow: hidden; margin-top: 8px; max-width: 360px; }
+.prog i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.feed-day { margin: 24px 2px 10px; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
+.feed-day:first-child { margin-top: 0; }
+.feed-item { padding: 16px 18px; margin-bottom: 10px; }
+.feed-item > b:first-child { font-size: 14.5px; font-weight: 620; letter-spacing: -.01em; display: block; margin-bottom: 3px; }
+.feed-item .src { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
+#feed .feed-item { position: relative; padding-left: 58px; padding-right: 96px; }
+#feed .feed-item::before { content: ""; position: absolute; left: 18px; top: 16px; width: 26px; height: 26px; border-radius: 8px; background: color-mix(in srgb, var(--spark) 18%, transparent); }
+#feed .feed-item::after { content: ""; position: absolute; left: 24px; top: 22px; width: 14px; height: 14px; background: var(--spark);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5c.5 4.9 2.6 7 7.5 7.5-4.9.5-7 2.6-7.5 7.5-.5-4.9-2.6-7-7.5-7.5 4.9-.5 7-2.6 7.5-7.5Z'/%3E%3C/svg%3E") center / contain no-repeat; }
+#feed .feed-item > div:last-child:has(.sh-rate) { position: absolute; right: 12px; top: 10px; }
+#feed .feed-item .sh-rate { margin-top: 0; justify-content: flex-end; max-width: 240px; }
+
+/* ---------- Settings ---------- */
+#v-settings.on { display: grid; grid-template-columns: 176px minmax(0, 1fr); gap: 0 32px; align-content: start; }
+#v-settings > .head { grid-column: 1 / -1; }
+#v-settings > .sect { grid-column: 2; }
+.setnav { grid-column: 1; grid-row: 2 / span 40; position: sticky; top: 24px; align-self: start; display: flex; flex-direction: column; gap: 1px; }
+.setnav a { display: block; padding: 5px 10px; border-radius: var(--r-sm); color: var(--muted); font-size: 13px; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.setnav a:hover { background: var(--hover); color: var(--text); }
+.setnav a.on { color: var(--text); background: var(--nav-on); font-weight: 500; }
+.sect { padding: 4px 20px 6px; margin-bottom: 18px; scroll-margin-top: 24px; }
+.sect h2 { margin: 16px 0 3px; font-size: 15px; font-weight: 640; letter-spacing: -.01em; }
+.sect > .muted { margin: 0 0 8px; font-size: 12.5px; max-width: 680px; }
+.sect > p.muted:first-of-type { margin-bottom: 8px; }
+.field { display: grid; grid-template-columns: 188px 1fr; gap: 16px; align-items: baseline; padding: 11px 0; border-top: 1px solid var(--line); min-height: 52px; }
+.sect > h2 + .field, .sect > .muted + .field, .field:first-of-type { border-top-color: var(--line); }
+.field > label { color: var(--text); font-weight: 500; font-size: 13px; }
+.field .ctl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.field .ctl .muted { font-size: 12.5px; }
+.seg-ctl { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--r-md); background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line); }
+.seg-ctl button { border: 0; border-radius: var(--r-sm); min-height: 26px; padding: 3px 12px; background: transparent; box-shadow: none; color: var(--muted); font-size: 12.5px; }
+.seg-ctl button:hover:not(:disabled):not(.on) { background: var(--hover); color: var(--text); }
+.seg-ctl button.on { background: var(--raised); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.12), 0 0 0 .5px rgba(0,0,0,.06); }
+.swatches { display: flex; gap: 10px; }
+.swatches button { width: 22px; height: 22px; min-height: 22px; border-radius: 50%; padding: 0; border: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); position: relative; }
+.swatches button.on::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--text); opacity: .75; }
+textarea.doc { width: 100%; min-height: 180px; font: 12.5px/1.55 var(--mono); }
+
+/* ---------- toasts, dialogs, menus ---------- */
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translate(-50%, 10px); display: flex; align-items: center; gap: 8px;
+  background: #1f1f1e; color: #f3f3f0; padding: 9px 16px 9px 12px; border-radius: 999px; font-size: 13px; font-weight: 500;
+  box-shadow: 0 10px 30px rgba(0,0,0,.25), 0 0 0 .5px rgba(255,255,255,.08); opacity: 0;
+  transition: opacity var(--t-med), transform var(--t-med) var(--ease-out); pointer-events: none; z-index: 40; max-width: min(560px, calc(100vw - 40px)); }
+.toast::before { content: ""; width: 16px; height: 16px; flex: none; border-radius: 50%; background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4.5 8.2 2.3 2.3 4.7-5'/%3E%3C/svg%3E") center / 12px no-repeat; }
+:root[data-theme="dark"] .toast { background: #f1f1ee; color: #1b1b19; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .toast { background: #f1f1ee; color: #1b1b19; } }
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+.modal-bg { position: fixed; inset: 0; background: rgba(10,10,8,.32); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); display: none; place-items: center; z-index: 30; padding: 16px; }
+.modal-bg.on { display: grid; animation: fadeIn var(--t-med) var(--ease-out); }
+.modal-bg.on .modal { animation: popIn var(--t-med) var(--ease-out); }
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes popIn { from { opacity: 0; transform: scale(.96) translateY(4px); } }
+.modal { padding: 22px 22px 18px; max-width: 420px; width: 100%; box-shadow: var(--shadow-pop); border-radius: var(--r-xl); }
+.modal h3 { margin: 0 0 6px; font-size: 16px; font-weight: 650; letter-spacing: -.01em; }
+.modal .muted { font-size: 13px; }
+.modal .acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.menu { position: absolute; bottom: 104px; left: 10px; right: 10px; padding: 5px; display: none; z-index: 5; box-shadow: var(--shadow-pop); border-radius: var(--r-lg); -webkit-app-region: no-drag; }
+.menu.on { display: block; animation: popIn var(--t-fast) var(--ease-out); }
+.menu button { display: flex; justify-content: flex-start; width: 100%; text-align: left; border: 0; background: none; box-shadow: none; padding: 6px 10px; min-height: 28px; font-weight: 450; }
+.menu button:hover:not(:disabled) { background: var(--accent); color: var(--on-accent); }
+
 @media (max-width: 860px) {
-  .app { grid-template-columns: 64px 1fr; } .brand span, .nav span, .cap { display: none; }
+  .app { grid-template-columns: 60px 1fr; } .brand > span:not(.mark), .nav span, .nav-sec, .cap { display: none; }
+  .side { padding-left: 8px; padding-right: 8px; } .brand { padding: 0 0 16px 6px; } .nav { justify-content: center; padding: 6px; }
   .tiles { grid-template-columns: repeat(2, minmax(0,1fr)); } .split, .mem { grid-template-columns: 1fr; }
-  #v-ask.on { grid-template-columns: 1fr; } .threads { display: none; } .field { grid-template-columns: 1fr; }
+  #v-ask.on { grid-template-columns: 1fr; } .threads { display: none; } .field { grid-template-columns: 1fr; gap: 6px; }
   .sb { grid-template-columns: 1fr; } .sdetail { position: static; }
+  #v-settings.on { display: block; } .setnav { display: none; } .view { padding: 32px 20px 48px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="glint-glyph" viewBox="0 0 24 24"><path d="M17.05 13.32A6.6 6.6 0 1 1 10.68 6.95" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path class="spark" fill="currentColor" d="M17.45 2.65Q18.05 5.95 21.35 6.55 18.05 7.15 17.45 10.45 16.85 7.15 13.55 6.55 16.85 5.95 17.45 2.65Z"/></symbol>
+</svg>
 <div class="app">
-  <aside class="side">
-    <div class="brand"><div class="logo">◐</div><span>Glint</span></div>
-    <div class="nav on" data-view="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><span>Today</span></div>
-    <div class="nav" data-view="ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></svg><span>Ask</span></div>
-    <div class="nav" data-view="memory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Memory</span></div>
-    <div class="nav" data-view="tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m4 12 5 5L20 6"/></svg><span>Tasks</span></div>
-    <div class="nav" data-view="insights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.9V16h5v-.2c0-.8.4-1.5 1-1.9A6 6 0 0 0 12 3Z"/></svg><span>Insights</span></div>
-    <div class="nav" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg><span>Settings</span></div>
+  <aside class="side" aria-label="Glint">
+    <div class="brand"><span class="mark" aria-hidden="true"><svg><use href="#glint-glyph"/></svg></span><span>Glint</span></div>
+    <nav class="nav-group" aria-label="Main">
+      <button type="button" title="Today" aria-label="Today" class="nav on" data-view="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M8 13.5h2M14 13.5h2M8 16.5h2"/></svg><span>Today</span></button>
+      <button type="button" title="Ask" aria-label="Ask" class="nav" data-view="ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5c0 4.1-3.6 7.5-8 7.5-1.2 0-2.4-.25-3.4-.7L4 19.5l1.1-3.6A7.2 7.2 0 0 1 4 11.5C4 7.4 7.6 4 12 4s8 3.4 8 7.5Z"/></svg><span>Ask</span></button>
+    </nav>
+    <div class="nav-sec">Library</div>
+    <nav class="nav-group" aria-label="Library">
+      <button type="button" title="Memory" aria-label="Memory" class="nav" data-view="memory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3.5 8.5 4.5-8.5 4.5L3.5 8z"/><path d="m3.5 12 8.5 4.5 8.5-4.5"/><path d="m3.5 16 8.5 4.5 8.5-4.5"/></svg><span>Memory</span></button>
+      <button type="button" title="Tasks" aria-label="Tasks" class="nav" data-view="tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="m8.4 12.2 2.4 2.4 4.8-5"/></svg><span>Tasks</span></button>
+      <button type="button" title="Insights" aria-label="Insights" class="nav" data-view="insights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 18h5M10.5 21h3M12 3a6 6 0 0 0-3.6 10.8c.6.5 1.1 1.2 1.1 2V16h5v-.2c0-.8.4-1.5 1.1-2A6 6 0 0 0 12 3Z"/></svg><span>Insights</span></button>
+    </nav>
+    <div class="nav-sec">Tools</div>
+    <nav class="nav-group" id="navTools" aria-label="Tools"></nav>
     <div class="grow"></div>
-    <div class="cap" id="cap">
+    <button type="button" title="Settings" aria-label="Settings" class="nav" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></svg><span>Settings</span></button>
+    <div class="cap" id="cap" role="status" aria-live="polite">
       <div class="row"><i class="dot" id="capDot"></i><b id="capState">Starting…</b></div>
       <div class="what" id="capWhat"></div>
-      <div class="acts"><button id="capPause">Pause</button><button id="capNow">Capture</button></div>
+      <div class="acts"><button id="capPause" aria-haspopup="menu">Pause</button><button id="capNow">Capture</button></div>
     </div>
-    <div class="card menu" id="pauseMenu">
-      <button data-pause="30">Pause for 30 minutes</button><button data-pause="60">Pause for 1 hour</button>
-      <button data-pause="tomorrow">Pause until 9am tomorrow</button><button data-pause="indefinite">Pause until I resume</button>
+    <div class="card menu" id="pauseMenu" role="menu">
+      <button data-pause="30" role="menuitem">Pause for 30 minutes</button><button data-pause="60" role="menuitem">Pause for 1 hour</button>
+      <button data-pause="tomorrow" role="menuitem">Pause until 9am tomorrow</button><button data-pause="indefinite" role="menuitem">Pause until I resume</button>
     </div>
   </aside>
 
   <main>
     <!-- TODAY -->
-    <section class="view on" id="v-today">
+    <section class="view on" id="v-today" aria-labelledby="dayTitle">
       <div class="head">
         <div><h1 id="dayTitle">Today</h1><div class="sub" id="daySub"></div></div>
-        <div class="chips"><button class="ghost" id="dayPrev">‹ Prev</button><button id="dayToday">Today</button><button class="ghost" id="dayNext">Next ›</button></div>
+        <div class="tlnav"><button class="ghost" id="dayPrev" aria-label="Previous day"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 6-6 6 6 6"/></svg></button><button class="ghost" id="dayToday" style="width:auto;padding:0 12px">Today</button><button class="ghost" id="dayNext" aria-label="Next day"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9.5 6 6 6-6 6"/></svg></button></div>
       </div>
       <div id="todayBanner"></div>
       <div class="tiles">
-        <div class="card tile"><b id="tTracked">0m</b><span>tracked</span></div>
-        <div class="card tile"><b id="tSessions">0</b><span>work sessions</span></div>
-        <div class="card tile"><b id="tFocus">–</b><span>average focus</span></div>
-        <div class="card tile"><b id="tTop" class="ell">–</b><span>top app</span></div>
+        <div class="card tile"><b id="tTracked">0m</b><span>Tracked</span></div>
+        <div class="card tile"><b id="tSessions">0</b><span>Work sessions</span></div>
+        <div class="card tile"><b id="tFocus">–</b><span>Average focus</span></div>
+        <div class="card tile"><b id="tTop" class="ell">–</b><span>Top app</span></div>
       </div>
       <div class="card timeline">
-        <b>Timeline</b>
+        <div class="card-title">Timeline <span class="muted">Hover a block for details</span></div>
         <div class="bar" id="bar"></div>
         <div class="hours" id="hours"></div>
         <div class="legend" id="legend"></div>
       </div>
       <div class="split">
         <div id="sessions"></div>
-        <div class="card apps"><b>Time by app</b><div id="appTotals" style="margin-top:12px"></div></div>
+        <div class="card apps"><div class="card-title">Time by app</div><div id="appTotals" style="margin-top:14px"></div></div>
       </div>
     </section>
 
     <!-- ASK -->
-    <section class="view" id="v-ask">
+    <section class="view" id="v-ask" aria-label="Ask">
       <div class="threads">
-        <button class="primary" id="newChat" style="width:100%;margin-bottom:10px">New chat</button>
+        <button class="primary" id="newChat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
+        <div class="lbl">Recent</div>
         <div id="threadList"></div>
       </div>
       <div class="chat">
-        <div class="msgs" id="msgs"><div class="inner" id="msgInner"></div></div>
+        <div class="msgs" id="msgs" aria-live="polite"><div class="inner" id="msgInner"></div></div>
         <div class="composer"><div class="box card">
-          <textarea id="askInput" rows="1" placeholder="Ask about anything you've seen or worked on…"></textarea>
-          <button class="primary" id="askSend">Ask</button>
-        </div></div>
+          <textarea id="askInput" rows="1" aria-label="Ask Glint" placeholder="Ask about anything you've seen or worked on…"></textarea>
+          <button class="primary" id="askSend" aria-label="Ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+        </div>
+        <div class="hint"><span><kbd>↵</kbd> ask</span><span><kbd>⇧</kbd><kbd>↵</kbd> new line</span><span><kbd>/</kbd> skills</span></div></div>
       </div>
     </section>
 
     <!-- MEMORY -->
-    <section class="view" id="v-memory">
+    <section class="view" id="v-memory" aria-label="Memory">
       <div class="head">
         <div><h1>Memory</h1><div class="sub">Every session you've worked, searchable and ready to pick up again.</div></div>
-        <div class="seg-ctl" id="memTabs"><button data-tab="sessions" class="on">Sessions</button><button data-tab="timeline">Timeline</button><button data-tab="captures">Captures</button></div>
+        <div class="seg-ctl" id="memTabs" role="tablist"><button data-tab="sessions" class="on">Sessions</button><button data-tab="timeline">Timeline</button><button data-tab="captures">Captures</button></div>
       </div>
 
       <div class="mtab" id="tab-sessions">
         <div class="controls">
-          <input type="search" id="sq" placeholder="Search sessions, apps and topics…" autocomplete="off">
-          <select id="sdays"><option value="">Any time</option><option value="1">Today</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></select>
-          <select id="sapp"><option value="">All apps</option></select>
-          <select id="sproj"><option value="">All projects</option></select>
-          <span class="muted" id="scount" style="align-self:center;font-size:13px"></span>
+          <span class="search"><input type="search" id="sq" placeholder="Search sessions, apps and topics…" autocomplete="off" aria-label="Search sessions"></span>
+          <select id="sdays" aria-label="Time range"><option value="">Any time</option><option value="1">Today</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></select>
+          <select id="sapp" aria-label="App"><option value="">All apps</option></select>
+          <select id="sproj" aria-label="Project"><option value="">All projects</option></select>
+          <span class="muted" id="scount" style="font-size:12.5px;margin-left:4px"></span>
         </div>
         <div class="sb">
           <div id="slist" class="slist"></div>
@@ -319,9 +561,9 @@ textarea.doc { width: 100%; min-height: 180px; font: 13px/1.5 ui-monospace, SFMo
       </div>
 
       <div class="mtab" id="tab-timeline" hidden>
-        <div class="controls" style="align-items:center">
-          <button class="ghost" id="tlPrev">‹</button><b id="tlDay" style="min-width:150px;text-align:center"></b><button class="ghost" id="tlNext">›</button>
-          <input type="search" id="tlq" placeholder="Filter by app or window…" style="flex:1 1 220px">
+        <div class="controls">
+          <div class="tlnav"><button class="ghost" id="tlPrev" aria-label="Previous day"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 6-6 6 6 6"/></svg></button><b id="tlDay"></b><button class="ghost" id="tlNext" aria-label="Next day"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9.5 6 6 6-6 6"/></svg></button></div>
+          <span class="search"><input type="search" id="tlq" placeholder="Filter by app or window…" aria-label="Filter timeline"></span>
         </div>
         <div class="sb">
           <div class="card tl" id="tlList"></div>
@@ -331,34 +573,35 @@ textarea.doc { width: 100%; min-height: 180px; font: 13px/1.5 ui-monospace, SFMo
 
       <div class="mtab" id="tab-captures" hidden>
         <div class="controls">
-          <input type="search" id="mq" placeholder="Search the raw text of every capture…" autocomplete="off">
-          <select id="msince"><option value="">Any time</option><option value="1">Last hour</option><option value="24">Last 24 hours</option><option value="168">Last 7 days</option><option value="720">Last 30 days</option></select>
-          <select id="mapp"><option value="">All apps</option></select>
-          <select id="mmode"><option value="hybrid">Hybrid</option><option value="keyword">Keyword</option><option value="semantic">Semantic</option></select>
+          <span class="search"><input type="search" id="mq" placeholder="Search the raw text of every capture…" autocomplete="off" aria-label="Search captures"></span>
+          <select id="msince" aria-label="Time range"><option value="">Any time</option><option value="1">Last hour</option><option value="24">Last 24 hours</option><option value="168">Last 7 days</option><option value="720">Last 30 days</option></select>
+          <select id="mapp" aria-label="App"><option value="">All apps</option></select>
+          <select id="mmode" aria-label="Search mode"><option value="hybrid">Hybrid</option><option value="keyword">Keyword</option><option value="semantic">Semantic</option></select>
         </div>
-        <div class="mmeta"><label><input type="checkbox" id="mall"> <span id="mcount">0 captures</span></label><span class="chips" id="memStats"></span><span id="mnote" class="err"></span><button class="danger" id="mdelSel" disabled>Remove selected</button></div>
+        <div class="mmeta"><label><input type="checkbox" id="mall"> <span id="mcount">0 captures</span></label><span class="chips" id="memStats" style="flex:1"></span><span id="mnote" class="err"></span><button class="danger" id="mdelSel" disabled>Remove selected</button></div>
         <div class="mem"><div class="card mlist" id="mlist"></div><div class="card mprev" id="mprev"></div></div>
       </div>
     </section>
 
     <!-- TASKS -->
-    <section class="view" id="v-tasks">
-      <div class="head"><div><h1>Tasks</h1><div class="sub">Ask can create and update these for you too.</div></div></div>
-      <div class="card" style="padding:10px;margin-bottom:14px;display:flex;gap:8px">
-        <input type="text" id="taskTitle" placeholder="Add a task…" style="flex:1"><button class="primary" id="taskAdd">Add</button>
+    <section class="view" id="v-tasks" aria-label="Tasks">
+      <div class="head"><div><h1>Tasks</h1><div class="sub">Track what's next. Ask can create and update these for you too.</div></div></div>
+      <div class="card addbar">
+        <input type="text" id="taskTitle" placeholder="Add a task and press Return…" aria-label="New task"><button class="primary" id="taskAdd">Add task</button>
       </div>
       <div class="card" id="taskList"></div>
     </section>
 
     <!-- INSIGHTS -->
-    <section class="view" id="v-insights">
-      <div class="head"><div><h1>Insights</h1><div class="sub">Patterns Glint noticed in your work sessions.</div></div></div>
+    <section class="view" id="v-insights" aria-label="Insights">
+      <div class="head"><div><h1>Insights</h1><div class="sub">Patterns Glint noticed in your work sessions. Rate them to tune what you see.</div></div></div>
       <div id="feed"></div>
     </section>
 
     <!-- SETTINGS -->
-    <section class="view" id="v-settings">
+    <section class="view" id="v-settings" aria-label="Settings">
       <div class="head"><div><h1>Settings</h1><div class="sub">Everything is stored on this Mac. API keys live in your Keychain.</div></div></div>
+      <nav class="setnav" id="setNav" aria-label="Settings sections"></nav>
 
       <div class="card sect">
         <h2>AI</h2><p class="muted"><b>Auto</b> uses Claude or OpenAI when you add a key, otherwise Apple's free on-device model (needs Apple Intelligence turned on). On-device requests never leave your Mac; cloud requests send only the text a request needs.</p>
@@ -387,12 +630,12 @@ textarea.doc { width: 100%; min-height: 180px; font: 13px/1.5 ui-monospace, SFMo
 
       <div class="card sect">
         <h2>About you</h2><p class="muted">Included in every Ask answer. Ask can also edit these when you tell it something worth remembering.</p>
-        <div class="field"><label>Bio</label><div class="ctl" style="flex:1;flex-direction:column;align-items:stretch"><textarea id="bio" rows="4" maxlength="6000" style="width:100%" placeholder="e.g. Product manager at Acme, working on the billing redesign."></textarea><div style="display:flex;justify-content:space-between"><span class="muted" id="bioCount"></span><button id="saveBio">Save bio</button></div></div></div>
-        <div class="field"><label>Lasting memory</label><div class="ctl" style="flex:1;flex-direction:column;align-items:stretch"><textarea id="memDoc" class="doc" maxlength="12000"></textarea><div style="display:flex;justify-content:space-between"><span class="muted" id="memCount"></span><button id="saveMem">Save memory</button></div></div></div>
+        <div class="field"><label>Bio</label><div class="ctl" style="flex:1;flex-direction:column;align-items:stretch"><textarea id="bio" rows="4" maxlength="6000" style="width:100%" placeholder="e.g. Product manager at Acme, working on the billing redesign."></textarea><div style="display:flex;justify-content:space-between;align-items:center"><span class="muted" id="bioCount"></span><button id="saveBio">Save bio</button></div></div></div>
+        <div class="field"><label>Lasting memory</label><div class="ctl" style="flex:1;flex-direction:column;align-items:stretch"><textarea id="memDoc" class="doc" maxlength="12000"></textarea><div style="display:flex;justify-content:space-between;align-items:center"><span class="muted" id="memCount"></span><button id="saveMem">Save memory</button></div></div></div>
       </div>
 
       <div class="card sect">
-        <h2>Dictate</h2><p class="muted">Hold <code>Control</code> + <code>Option</code> in any app, speak, and release to insert. <code>Esc</code> cancels. Uses OpenAI Whisper when an OpenAI key is set, otherwise on-device recognition.</p>
+        <h2>Dictate</h2><p class="muted">Hold <kbd>Control</kbd> + <kbd>Option</kbd> in any app, speak, and release to insert. <kbd>Esc</kbd> cancels. Uses OpenAI Whisper when an OpenAI key is set, otherwise on-device recognition.</p>
         <div class="field"><label>Dictate</label><div class="ctl"><label><input type="checkbox" id="dictOn"> Enabled</label><label><input type="checkbox" id="dictPolish"> Polish (remove fillers, fix punctuation, apply style)</label></div></div>
         <div class="field"><label>Style by context</label><div class="ctl" id="dictStyles"></div></div>
         <div class="field"><label>Dictionary</label><div class="ctl" style="flex:1;flex-direction:column;align-items:stretch">
@@ -418,16 +661,33 @@ textarea.doc { width: 100%; min-height: 180px; font: 13px/1.5 ui-monospace, SFMo
   </main>
 </div>
 
-<div class="modal-bg" id="modal"><div class="card modal"><h3 id="mTitle"></h3><div class="muted" id="mBody"></div>
+<div class="modal-bg" id="modal"><div class="card modal" role="alertdialog" aria-modal="true" aria-labelledby="mTitle" aria-describedby="mBody"><h3 id="mTitle"></h3><div class="muted" id="mBody"></div>
   <div class="acts"><button id="mCancel">Cancel</button><button class="danger solid" id="mOk">Delete</button></div></div></div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 const TOKEN = "__GLINT_TOKEN__";
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const PALETTE = ["#2f6f5e", "#c26a3d", "#4a6fb3", "#a8487a", "#7b8f2e", "#6a55b0", "#c49a2c", "#3f8f9a", "#b04b4b", "#5b6b7a"];
-const colorOf = (s) => { let h = 0; for (const c of s || "") h = (h * 31 + c.charCodeAt(0)) >>> 0; return PALETTE[h % PALETTE.length]; };
+// App colours: ten evenly spread hues at similar weight; each keeps a white initial legible.
+const PALETTE = ["#3b78d1", "#d0612c", "#1d8f66", "#b9861a", "#c24f86", "#6a5ad0", "#21899a", "#c64545", "#6f8a26", "#5c6b7c"];
+// Case-insensitive so a session's "Linear" and a capture's "linear" share a colour.
+const colorOf = (s) => { let h = 0; for (const c of String(s || "").toLowerCase()) h = (h * 31 + c.charCodeAt(0)) >>> 0; return PALETTE[h % PALETTE.length]; };
+/* ---------- empty states, skeletons ---------- */
+const SPARK = (cx, cy, r) => `<path fill="var(--spark)" d="M${cx} ${cy - r}Q${cx + r * .16} ${cy - r * .16} ${cx + r} ${cy} ${cx + r * .16} ${cy + r * .16} ${cx} ${cy + r} ${cx - r * .16} ${cy + r * .16} ${cx - r} ${cy} ${cx - r * .16} ${cy - r * .16} ${cx} ${cy - r}Z"/>`;
+const ART = {
+  sessions: '<rect x="23" y="17" width="30" height="6" rx="3" fill="currentColor" opacity=".25"/><rect x="16" y="24" width="40" height="30" rx="6" fill="var(--panel)" stroke="currentColor" stroke-width="1.6"/><path d="M23 33h18M23 39h26M23 45h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>',
+  search: '<circle cx="32" cy="32" r="13" fill="var(--panel)" stroke="currentColor" stroke-width="1.8"/><path d="m41.5 41.5 9 9" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/><path d="M26 30h12M26 35h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".6"/>',
+  chat: '<path d="M15 24a6 6 0 0 1 6-6h24a6 6 0 0 1 6 6v14a6 6 0 0 1-6 6H29l-8 7v-7a6 6 0 0 1-6-6z" fill="var(--panel)" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M23 28h20M23 34h13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>',
+  tasks: '<rect x="17" y="16" width="38" height="40" rx="6" fill="var(--panel)" stroke="currentColor" stroke-width="1.6"/><path d="m23 27 3 3 5-6M23 39l3 3 5-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 28h12M36 40h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".6"/>',
+  insights: '<path d="M36 15a13 13 0 0 0-7.8 23.4c1.3 1 2.3 2.6 2.3 4.3V45h11v-2.3c0-1.7 1-3.3 2.3-4.3A13 13 0 0 0 36 15Z" fill="var(--panel)" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M31 50h10M33 55h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  timeline: '<circle cx="36" cy="36" r="17" fill="var(--panel)" stroke="currentColor" stroke-width="1.6"/><path d="M36 27v9l6 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  sparkle: '<rect x="18" y="18" width="36" height="36" rx="10" fill="var(--panel)" stroke="currentColor" stroke-width="1.6"/><path d="M36 26c.5 5 2.6 7 7.5 7.5-4.9.5-7 2.6-7.5 7.5-.5-4.9-2.6-7-7.5-7.5 4.9-.5 7-2.6 7.5-7.5Z" fill="currentColor"/>',
+};
+function emptyState({ art = "sparkle", title = "", body = "", actions = "" } = {}) {
+  return `<div class="empty"><svg class="art" viewBox="0 0 72 72" fill="none" aria-hidden="true"><circle cx="36" cy="36" r="34" fill="currentColor" opacity=".07"/><circle cx="36" cy="36" r="27" stroke="currentColor" stroke-opacity=".16" stroke-dasharray="1.5 4" stroke-linecap="round"/>${ART[art] || ART.sparkle}${SPARK(55, 17, 6)}${SPARK(14, 50, 3.2)}</svg>${title ? `<b>${esc(title)}</b>` : ""}${body ? `<p>${body}</p>` : ""}${actions ? `<div class="acts">${actions}</div>` : ""}</div>`;
+}
+const skeleton = (n = 3, cls = "card skel-card") => Array.from({ length: n }, () => `<div class="${cls}"><span class="skel t"></span><span class="skel"></span><span class="skel s"></span></div>`).join("");
 const mins = (sec) => sec >= 3600 ? `${Math.floor(sec / 3600)}h ${Math.round((sec % 3600) / 60)}m` : `${Math.round(sec / 60)}m`;
 const clock = (ms) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 function when(ms) {
@@ -447,7 +707,9 @@ function confirmDialog(title, body, okLabel = "Delete") {
   return new Promise((resolve) => {
     $("mTitle").textContent = title; $("mBody").textContent = body; $("mOk").textContent = okLabel;
     $("modal").classList.add("on");
-    const done = (v) => { $("modal").classList.remove("on"); $("mOk").onclick = $("mCancel").onclick = null; resolve(v); };
+    const back = document.activeElement;
+    setTimeout(() => $("mOk").focus(), 30);
+    const done = (v) => { $("modal").classList.remove("on"); $("mOk").onclick = $("mCancel").onclick = null; back?.focus?.(); resolve(v); };
     $("mOk").onclick = () => done(true); $("mCancel").onclick = () => done(false);
   });
 }
@@ -475,29 +737,39 @@ function md(text) {
 }
 
 /* ---------- appearance ---------- */
-const ACCENTS = { green: ["#2f6f5e", "#6cc3a6"], blue: ["#2f5fa8", "#7aa7ee"], purple: ["#6a4bb3", "#a98ff0"], pink: ["#b2457a", "#ef8fbd"],
-  orange: ["#b8622a", "#f0a36b"], teal: ["#1f7a85", "#63c8d2"], graphite: ["#4a4a4a", "#b5b5b5"] };
+// [light, dark] per accent. Light values keep white text ≥ 4.5:1; dark values carry dark text.
+const ACCENTS = { green: ["#2f6f5e", "#6cc3a6"], blue: ["#2f5fa8", "#7aa7ee"], purple: ["#6a4bb3", "#a98ff0"], pink: ["#a63f72", "#ef8fbd"],
+  orange: ["#a8561f", "#f0a36b"], teal: ["#1a6c76", "#63c8d2"], graphite: ["#4a4a4a", "#b5b5b5"] };
+let lastLook = null;
 function applyLook(s) {
+  lastLook = s;
   const root = document.documentElement;
   if (s.theme === "light" || s.theme === "dark") root.dataset.theme = s.theme; else delete root.dataset.theme;
   const [light, dark] = ACCENTS[s.accent] || ACCENTS.green;
   const isDark = s.theme === "dark" || (s.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
-  root.style.setProperty("--accent", isDark ? dark : light);
-  root.style.setProperty("--accent-2", (isDark ? dark : light) + (isDark ? "26" : "1f"));
+  const c = isDark ? dark : light;
+  root.style.setProperty("--accent", c);
+  root.style.setProperty("--accent-2", c + (isDark ? "26" : "1f"));
+  root.style.setProperty("--accent-ring", c + (isDark ? "4d" : "40"));
+  root.style.setProperty("--on-accent", isDark ? "#0f1412" : "#ffffff");
+  root.style.setProperty("--accent-deep", light);
 }
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => { if (lastLook) applyLook(lastLook); });
 
 /* ---------- navigation ---------- */
 const views = ["today", "ask", "memory", "tasks", "insights", "settings"];
 const VIEW_HOOKS = {}, SETTINGS_HOOKS = [];
 function show(view) {
   if (!views.includes(view)) view = "today";
-  document.querySelectorAll(".nav").forEach((n) => n.classList.toggle("on", n.dataset.view === view));
+  document.querySelectorAll(".nav").forEach((n) => { const on = n.dataset.view === view; n.classList.toggle("on", on); if (on) n.setAttribute("aria-current", "page"); else n.removeAttribute("aria-current"); });
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("on", v.id === `v-${view}`));
   try { localStorage.setItem("hs.view", view); } catch {}
   const fn = ({ today: loadToday, ask: loadThreads, memory: loadMemory, tasks: loadTasks, insights: loadInsights, settings: loadSettings })[view] || VIEW_HOOKS[view];
   if (fn) fn();
 }
 document.querySelector(".side").addEventListener("click", (e) => { const n = e.target.closest(".nav"); if (n) show(n.dataset.view); });
+document.addEventListener("click", (e) => { const g = e.target.closest("[data-goview]"); if (g) show(g.dataset.goview); });
+document.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.matches?.('[role="button"][tabindex]')) { e.preventDefault(); e.target.click(); } });
 window.glintNavigate = (v) => show(v);
 
 /* ---------- capture status ---------- */
@@ -535,6 +807,7 @@ const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,
 function shiftDay(n) { const d = day ? new Date(day + "T12:00") : new Date(); d.setDate(d.getDate() + n); day = isoDay(d); loadToday(); }
 $("dayPrev").onclick = () => shiftDay(-1); $("dayNext").onclick = () => shiftDay(1); $("dayToday").onclick = () => { day = null; loadToday(); };
 async function loadToday() {
+  if (!$("sessions").children.length) $("sessions").innerHTML = skeleton(2);
   const t = await api("/api/today" + (day ? `?date=${day}` : ""));
   const d = new Date(t.date + "T12:00"), isToday = t.date === isoDay(new Date());
   $("dayTitle").textContent = isToday ? "Today" : d.toLocaleDateString([], { weekday: "long" });
@@ -559,8 +832,8 @@ async function loadToday() {
   $("hours").innerHTML = hrs.join("");
   $("legend").innerHTML = t.app_totals.slice(0, 8).map(([a]) => `<span><i style="background:${colorOf(a)}"></i>${esc(a)}</span>`).join("");
   const max = t.app_totals[0]?.[1] || 1;
-  $("appTotals").innerHTML = t.app_totals.length ? t.app_totals.slice(0, 12).map(([a, sec]) => `<div class="approw"><span class="ell">${esc(a)}</span><span class="muted">${mins(sec)}</span><div class="track"><i style="width:${(sec / max) * 100}%;background:${colorOf(a)}"></i></div></div>`).join("") : '<div class="muted">Nothing tracked yet.</div>';
-  $("sessions").innerHTML = t.sessions.length ? t.sessions.map(sessionCard).join("") : `<div class="card empty">No work sessions ${isToday ? "yet today" : "on this day"}. Glint starts a session as soon as it captures activity.</div>`;
+  $("appTotals").innerHTML = t.app_totals.length ? t.app_totals.slice(0, 12).map(([a, sec]) => `<div class="approw"><span class="ell" style="display:flex;gap:8px;align-items:center">${appIcon(a)}${esc(a)}</span><span class="muted">${mins(sec)}</span><div class="track"><i style="width:${(sec / max) * 100}%;background:${colorOf(a)}"></i></div></div>`).join("") : '<div class="muted" style="font-size:13px">Nothing tracked yet.</div>';
+  $("sessions").innerHTML = t.sessions.length ? t.sessions.map(sessionCard).join("") : `<div class="card">${emptyState({ art: "sessions", title: isToday ? "No work sessions yet today" : "No work sessions on this day", body: "Glint starts a session as soon as it sees you working, then titles and summarizes it when you stop.", actions: isToday ? '<button data-goview="ask">Ask about earlier days</button>' : "" })}</div>`;
 }
 function sessionCard(s) {
   const dur = Math.max(1, Math.round((s.ended_at - s.started_at) / 60000));
@@ -608,13 +881,13 @@ let threadId = null, asking = false;
 const SUGGESTIONS = ["What was I working on this morning?", "Summarize my day so far", "Find the last thing I read about pricing", "What tasks do I have open?"];
 async function loadThreads() {
   const ts = await api("/api/threads");
-  $("threadList").innerHTML = ts.map((t) => `<div class="t ${t.id === threadId ? "on" : ""}" data-id="${esc(t.id)}"><span>${esc(t.title || "Chat")}</span><button title="Delete">✕</button></div>`).join("") || '<div class="muted" style="padding:8px 10px;font-size:13px">No chats yet</div>';
+  $("threadList").innerHTML = ts.map((t) => `<div class="t ${t.id === threadId ? "on" : ""}" data-id="${esc(t.id)}" tabindex="0" role="button"><span>${esc(t.title || "Chat")}</span><button title="Delete chat" aria-label="Delete chat">✕</button></div>`).join("") || '<div class="faint" style="padding:6px 10px;font-size:12.5px">Your chats show up here.</div>';
   if (!threadId) renderEmptyChat();
 }
 function renderEmptyChat() {
-  $("msgInner").innerHTML = `<div style="padding-top:12vh"><h1 style="margin:0;font-size:24px">Ask your memory</h1>
-    <div class="muted">Glint searches what you've seen and done on this Mac, then answers.</div>
-    <div class="suggest">${SUGGESTIONS.map((s) => `<button class="card" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div></div>`;
+  $("msgInner").innerHTML = `<div class="chat-hero"><span class="mark" aria-hidden="true"><svg><use href="#glint-glyph"/></svg></span><h1>Ask your memory</h1>
+    <div class="muted">Glint searches what you've seen and done on this Mac, then answers. Nothing leaves it unless you use a cloud model.</div>
+    <div class="suggest">${SUGGESTIONS.map((s) => `<button data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div></div>`;
 }
 $("msgInner").addEventListener("click", (e) => { const b = e.target.closest("button[data-q]"); if (b) { $("askInput").value = b.dataset.q; send(); } });
 $("threadList").addEventListener("dblclick", async (e) => {
@@ -718,6 +991,7 @@ async function loadFacets() {
   keep("sproj", "All projects", f.projects.map(([p, n]) => `<option value="${esc(p)}">${esc(p)} (${n})</option>`).join(""));
 }
 async function searchSessions() {
+  if (!$("slist").children.length) $("slist").innerHTML = skeleton(4, "sgroup skel-card");
   const seq = ++sstate.seq, p = new URLSearchParams({ limit: 150 });
   if ($("sq").value.trim()) p.set("query", $("sq").value.trim());
   for (const [id, k] of [["sdays", "days"], ["sapp", "app"], ["sproj", "project"]]) if ($(id).value) p.set(k, $(id).value);
@@ -727,7 +1001,7 @@ async function searchSessions() {
   $("scount").textContent = `${r.total} session${r.total === 1 ? "" : "s"}`;
   if (!r.sessions.some((s) => s.id === sstate.active)) sstate.active = r.sessions[0]?.id ?? null;
   renderSessionList();
-  if (sstate.active) openSession(sstate.active); else $("sdetail").innerHTML = '<div class="empty">No sessions match.</div>';
+  if (sstate.active) openSession(sstate.active); else $("sdetail").innerHTML = "";
 }
 function dayLabel(ms) {
   const d = new Date(ms), n = new Date(), y = new Date(n); y.setDate(n.getDate() - 1);
@@ -736,7 +1010,7 @@ function dayLabel(ms) {
   return d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
 }
 function renderSessionList() {
-  if (!sstate.list.length) { $("slist").innerHTML = `<div class="card empty">${$("sq").value.trim() ? "No matching sessions." : "No sessions yet. Glint starts one as soon as it captures activity."}</div>`; return; }
+  if (!sstate.list.length) { $("slist").innerHTML = `<div class="card">${$("sq").value.trim() || $("sdays").value || $("sapp").value || $("sproj").value ? emptyState({ art: "search", title: "No matching sessions", body: "Try fewer words, or widen the time range and filters." }) : emptyState({ art: "sessions", title: "No sessions yet", body: "Glint starts a session as soon as it sees you working. Keep it running and come back in a bit." })}</div>`; return; }
   let html = "", day = "";
   for (const s of sstate.list) {
     const d = dayLabel(s.started_at);
@@ -755,7 +1029,7 @@ async function openSession(id) {
   const apps = s.apps.map(([a, sec]) => `<span class="sitechip">${appIcon(a, true)}${esc(a)}<span class="muted">${mins(sec)}</span></span>`).join("");
   const sites = s.hosts.map(([h, n]) => `<span class="sitechip">${siteIcon(h, true)}${esc(siteName(h))}<span class="muted">${n}×</span></span>`).join("");
   $("sdetail").innerHTML = `
-    <h2><span id="sTitle">${esc(s.title || (s.active ? "Current session" : "Untitled session"))}</span><button class="ghost" id="sEdit" title="Rename">✎</button></h2>
+    <h2><span id="sTitle">${esc(s.title || (s.active ? "Current session" : "Untitled session"))}</span><button class="ghost" id="sEdit" title="Rename session" aria-label="Rename session"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg></button></h2>
     <div class="meta">${esc(dayLabel(s.started_at))} at ${clock(s.started_at)} · ${durMin(s)} min${s.project ? ` · <a href="#" id="sProjLink">${esc(s.project)}</a>` : ""} · <a href="#" id="sProjEdit">${s.project ? "change project" : "set project"}</a></div>
     ${s.summary ? `<p style="margin:0">${esc(s.summary)}</p>` : `<p class="muted" style="margin:0">${s.active ? "This session is still going. It gets a summary when it ends." : "No summary yet."} ${!s.active ? '<button id="sSum" style="margin-left:6px">Summarize</button>' : ""}</p>`}
     ${s.quality ? `<div class="qbars" title="${esc(s.quality.rationale || "")}">${["focus", "depth", "consistency", "recovery"].map((k) => `<div class="qbar"><span>${k}<b>${s.quality[k]}</b></span><div class="track"><i style="width:${s.quality[k]}%"></i></div></div>`).join("")}</div>` : ""}
@@ -781,6 +1055,7 @@ let st; $("sq").addEventListener("input", () => { clearTimeout(st); st = setTime
 
 let tlDate = null, tlItems = [];
 async function loadTimeline() {
+  if (!$("tlList").children.length) $("tlList").innerHTML = skeleton(4, "skel-card");
   const t = await api("/api/timeline" + (tlDate ? `?date=${tlDate}` : ""));
   tlItems = t.items;
   const d = new Date(t.date + "T12:00");
@@ -790,7 +1065,7 @@ async function loadTimeline() {
 function renderTimeline() {
   const f = $("tlq").value.trim().toLowerCase();
   const items = tlItems.filter((i) => !f || `${i.app} ${i.title} ${i.host || ""}`.toLowerCase().includes(f));
-  if (!items.length) { $("tlList").innerHTML = '<div class="empty">Nothing captured on this day.</div>'; $("tlPrev2").innerHTML = ""; return; }
+  if (!items.length) { $("tlList").innerHTML = emptyState({ art: "timeline", title: "Nothing captured on this day", body: "Pick another day with the arrows, or clear the filter." }); $("tlPrev2").innerHTML = ""; return; }
   let html = "", hour = -1;
   for (const i of items) {
     const h = new Date(i.start).getHours();
@@ -799,13 +1074,13 @@ function renderTimeline() {
     html += `<div class="tlrow" data-id="${esc(i.chunk_id)}"><span class="muted">${clock(i.start)}</span>${i.host ? siteIcon(i.host) : appIcon(i.app)}<span class="ell"><b>${esc(i.app)}</b> · ${esc(i.title || (i.host ? siteName(i.host) : ""))}</span><span class="muted">${m ? m + "m" : ""}</span></div>`;
   }
   $("tlList").innerHTML = html;
-  $("tlPrev2").innerHTML = '<div class="empty">Select an entry to see what was on screen.</div>';
+  $("tlPrev2").innerHTML = emptyState({ art: "search", title: "Pick a moment", body: "Select an entry to see exactly what was on screen." });
 }
 $("tlList").onclick = async (e) => {
   const r = e.target.closest(".tlrow"); if (!r) return;
   $("tlList").querySelectorAll(".tlrow").forEach((x) => x.classList.toggle("on", x === r));
   const c = await api(`/api/capture/text?id=${encodeURIComponent(r.dataset.id)}`);
-  $("tlPrev2").innerHTML = `<div class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.06em">${esc(c.app)}</div><h3 style="margin:4px 0 6px">${esc(c.title || "(untitled)")}</h3>
+  $("tlPrev2").innerHTML = `<div class="eyebrow" style="display:flex;gap:8px;align-items:center">${c.host ? siteIcon(c.host) : appIcon(c.app)}${esc(c.app)}</div><h3 style="margin:10px 0 8px">${esc(c.title || "(untitled)")}</h3>
     <div class="chips"><span class="chip">${when(c.at)}</span><span class="chip">${esc(c.source)}</span>${c.host ? `<span class="chip">${esc(c.host)}</span>` : ""}</div><div class="mtext">${esc(c.text)}</div>`;
 };
 $("tlq").addEventListener("input", renderTimeline);
@@ -827,6 +1102,7 @@ async function loadMemStats() {
   $("mapp").value = cur;
 }
 async function memSearch() {
+  if (!$("mlist").children.length) $("mlist").innerHTML = skeleton(5, "skel-card");
   const seq = ++mstate.seq, p = new URLSearchParams({ limit: 48, mode: $("mmode").value });
   if ($("mq").value.trim()) p.set("query", $("mq").value.trim());
   if ($("msince").value) p.set("sinceHours", $("msince").value);
@@ -846,14 +1122,14 @@ function renderMem() {
   $("mlist").innerHTML = hits.length ? hits.map((h) => `<div class="mrow ${h.chunkId === mstate.active ? "on" : ""}" data-id="${esc(h.chunkId)}">
     <input type="checkbox" ${mstate.sel.has(h.chunkId) ? "checked" : ""}><div class="ico" style="background:${colorOf(h.appId)}">${esc((h.appId || "?")[0].toUpperCase())}</div>
     <div style="min-width:0"><div class="ell"><b>${hl(h.windowTitle || "(untitled)")}</b></div><div class="ell muted" style="font-size:12px">${esc(h.appId)}${h.urlHost ? " · " + esc(h.urlHost) : ""}</div></div>
-    <div class="muted" style="font-size:12px;white-space:nowrap">${when(h.capturedAt)}</div></div>`).join("") : `<div class="empty">${$("mq").value.trim() ? "No matches." : "Nothing captured yet."}</div>`;
+    <div class="muted" style="font-size:12px;white-space:nowrap">${when(h.capturedAt)}</div></div>`).join("") : ($("mq").value.trim() ? emptyState({ art: "search", title: "No matches", body: "Try Semantic mode for meaning instead of exact words, or widen the time range." }) : emptyState({ art: "search", title: "Nothing captured yet", body: "Window text you work with appears here, ready to search." }));
   const h = hits.find((x) => x.chunkId === mstate.active);
-  $("mprev").innerHTML = h ? `<div class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.06em">${esc(h.appId)}</div>
-    <h3 style="margin:4px 0 10px">${hl(h.windowTitle || "(untitled)")}</h3>
+  $("mprev").innerHTML = h ? `<div class="eyebrow" style="display:flex;gap:8px;align-items:center">${h.urlHost ? siteIcon(h.urlHost) : appIcon(h.appId)}${esc(h.appId)}</div>
+    <h3 style="margin:10px 0 10px">${hl(h.windowTitle || "(untitled)")}</h3>
     <div class="chips"><span class="chip">${esc(h.titleOnly ? "title" : h.source)}</span><span class="chip">${when(h.capturedAt)}</span><span class="chip">${(h.charCount || 0).toLocaleString()} chars</span>${h.score ? `<span class="chip accent">score ${h.score.toFixed(4)}</span>` : ""}${Object.entries(h.signals || {}).map(([k, v]) => `<span class="chip">${esc(k)} #${v.rank}</span>`).join("")}</div>
-    ${h.urlHost ? `<div style="color:var(--accent);margin-top:8px">${esc(h.urlHost)}</div>` : ""}
+    ${h.urlHost ? `<div style="color:var(--accent);margin-top:10px;font-size:13px;font-weight:500">${esc(h.urlHost)}</div>` : ""}
     <div class="mtext">${hl(h.textPreview)}</div>
-    <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="danger" id="mdelOne">Remove this capture</button></div>` : '<div class="empty">Select a capture to preview it.</div>';
+    <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="danger" id="mdelOne">Remove this capture</button></div>` : emptyState({ art: "search", title: "Select a capture", body: "Its full text shows here, with the words you searched highlighted." });
   const one = $("mdelOne"); if (one) one.onclick = () => memDelete([h.chunkId]);
 }
 async function memDelete(ids) {
@@ -873,10 +1149,11 @@ let mt; $("mq").addEventListener("input", () => { clearTimeout(mt); mt = setTime
 
 /* ---------- insights ---------- */
 async function loadInsights() {
+  if (!$("feed").children.length) $("feed").innerHTML = skeleton(3);
   const ss = await api("/api/sessions?limit=300");
   const items = [];
   for (const s of ss) for (const i of s.insights) items.push({ ...i, s });
-  if (!items.length) { $("feed").innerHTML = '<div class="card empty">No insights yet. They appear after work sessions are summarized (add an API key in Settings).</div>'; return; }
+  if (!items.length) { $("feed").innerHTML = `<div class="card">${emptyState({ art: "insights", title: "No insights yet", body: "They appear after work sessions are summarized. Turn on Apple Intelligence or add a Claude or OpenAI key to get them.", actions: '<button data-goview="settings">Open Settings</button>' })}</div>`; return; }
   let lastDay = "", html = "";
   for (const it of items) {
     const d = new Date(it.s.started_at).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
@@ -890,13 +1167,14 @@ async function loadInsights() {
 
 /* ---------- tasks ---------- */
 async function loadTasks() {
+  if (!$("taskList").children.length) $("taskList").innerHTML = skeleton(3, "skel-card");
   const ts = await api("/api/tasks");
   $("taskList").innerHTML = ts.length ? ts.map((t) => `<div class="task ${t.progress >= 100 ? "done" : ""}" data-id="${esc(t.id)}">
     <input type="checkbox" ${t.progress >= 100 ? "checked" : ""}><div><div class="tt">${esc(t.title)} <span class="muted" style="font-size:12px">${t.progress}%</span></div>
       <div class="prog"><i style="width:${t.progress}%"></i></div>
       ${t.logs.length ? `<div class="notes">${t.logs.slice(-3).map((l) => `${when(l.at)} — ${esc(l.text)}`).join("\n")}</div>` : ""}
       <div style="display:flex;gap:8px;margin-top:6px;align-items:center"><input type="range" min="0" max="100" step="5" value="${t.progress}" data-prog><input type="text" placeholder="Log progress…" data-log style="flex:1;padding:4px 8px;font-size:12.5px"></div></div>
-    <button class="ghost danger" data-del>✕</button></div>`).join("") : '<div class="empty">No tasks. Add one above, or ask: “add a task to follow up with Sam”.</div>';
+    <button class="ghost danger" data-del title="Delete task" aria-label="Delete task">✕</button></div>`).join("") : emptyState({ art: "tasks", title: "Nothing on your list", body: "Add one above, or ask Glint: “add a task to follow up with Sam”." });
 }
 $("taskList").addEventListener("click", async (e) => {
   const row = e.target.closest(".task"); if (!row) return;
@@ -913,7 +1191,25 @@ $("taskAdd").onclick = addTask; $("taskTitle").addEventListener("keydown", (e) =
 
 /* ---------- settings ---------- */
 let settings = null;
+/* Settings index: a sticky jump list built from the section titles, highlighted while scrolling. */
+function buildSettingsNav() {
+  const secs = [...document.querySelectorAll("#v-settings .sect")];
+  secs.forEach((c, i) => { if (!c.id) c.id = `set-core-${i}`; });
+  $("setNav").innerHTML = secs.map((c) => `<a href="#${c.id}" data-sec="${c.id}">${esc(c.querySelector("h2")?.textContent || "")}</a>`).join("");
+  spySettings();
+}
+function spySettings() {
+  if (!$("v-settings").classList.contains("on")) return;
+  const top = document.querySelector("main").getBoundingClientRect().top + 90;
+  let cur = null;
+  for (const c of document.querySelectorAll("#v-settings .sect")) if (c.getBoundingClientRect().top <= top) cur = c.id;
+  cur ||= document.querySelector("#v-settings .sect")?.id;
+  $("setNav").querySelectorAll("a").forEach((a) => a.classList.toggle("on", a.dataset.sec === cur));
+}
+$("setNav").addEventListener("click", (e) => { const a = e.target.closest("a[data-sec]"); if (!a) return; e.preventDefault(); $(a.dataset.sec).scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }); });
+document.querySelector("main").addEventListener("scroll", () => requestAnimationFrame(spySettings), { passive: true });
 async function loadSettings() {
+  buildSettingsNav();
   const r = await api("/api/settings"); settings = r.settings;
   document.querySelectorAll("#provSeg button").forEach((b) => b.classList.toggle("on", b.dataset.p === settings.provider));
   $("fastOnDevice").checked = settings.fast_on_device !== false;
@@ -983,7 +1279,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("modal")
 let start = "today"; try { start = localStorage.getItem("hs.view") || "today"; } catch {}
 /* ---------- plug-in API for web/features/*.js ---------- */
 window.HS = {
-  api, esc, md, toast, confirmDialog, colorOf, when, clock, mins, show,
+  api, esc, md, toast, confirmDialog, colorOf, when, clock, mins, show, emptyState, skeleton,
   get settings() { return settings; }, get status() { return status; },
   toolLabels: TOOL_LABEL,   // add { tool_name: (input) => "chip label" }
   renderers: {},            // { eventKind: (payload, element) => void } for custom Ask stream events
@@ -991,10 +1287,11 @@ window.HS = {
     if (views.includes(id)) return;
     views.push(id);
     if (onShow) VIEW_HOOKS[id] = onShow;
-    const nav = document.createElement("div");
-    nav.className = "nav"; nav.dataset.view = id;
+    const nav = document.createElement("button");
+    nav.type = "button"; nav.className = "nav"; nav.dataset.view = id;
+    nav.title = label; nav.setAttribute("aria-label", label);
     nav.innerHTML = `${icon}<span>${esc(label)}</span>`;
-    document.querySelector('.nav[data-view="settings"]').before(nav);
+    $("navTools").appendChild(nav);
     const sec = document.createElement("section");
     sec.className = "view"; sec.id = `v-${id}`; sec.innerHTML = html;
     document.querySelector("main").appendChild(sec);

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>Glint</title>
+  <!-- The Glint mark: a ring of memory, open where the glint of an idea sits. The glyph works in one colour on its own. -->
+  <defs>
+    <linearGradient id="g-body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4aa588"/>
+      <stop offset=".55" stop-color="#2b6b5a"/>
+      <stop offset="1" stop-color="#163a31"/>
+    </linearGradient>
+    <linearGradient id="g-spark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff4d6"/>
+      <stop offset="1" stop-color="#f2b84b"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="115" fill="url(#g-body)"/>
+  <g transform="translate(52 52) scale(17)">
+    <path d="M17.05 13.32A6.6 6.6 0 1 1 10.68 6.95" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M17.45 2.65Q18.05 5.95 21.35 6.55 18.05 7.15 17.45 10.45 16.85 7.15 13.55 6.55 16.85 5.95 17.45 2.65Z" fill="url(#g-spark)"/>
+  </g>
+</svg>

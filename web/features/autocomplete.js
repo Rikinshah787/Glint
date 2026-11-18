@@ -6,20 +6,21 @@
     { id: "ghost", label: "Ghost text" },
   ];
   const css = `
-    #set-autocomplete .ac-preview { margin-top: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px;
+    #set-autocomplete .ac-preview { margin-top: 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-lg);
       background: var(--panel-2); font-size: 13.5px; line-height: 1.5; min-height: 52px; position: relative; max-width: 460px; }
     #set-autocomplete .ac-typed::after { content: ""; display: inline-block; width: 1.5px; height: 1.05em; vertical-align: -2px;
       background: var(--text); margin: 0 1px; animation: acBlink 1s steps(2) infinite; }
     @keyframes acBlink { 50% { opacity: 0; } }
-    #set-autocomplete .ac-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 8px;
-      background: var(--panel); border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,.08); font-size: 12.5px; }
+    #set-autocomplete .ac-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 6px 2px 9px; border-radius: var(--r-sm);
+      background: var(--panel); border: 1px solid var(--line-2); box-shadow: var(--shadow-pop); font-size: 12.5px; }
     #set-autocomplete .ac-chip b { font-weight: 500; color: var(--text); }
     #set-autocomplete .ac-chip span { color: var(--muted); }
-    #set-autocomplete .ac-key { font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+    #set-autocomplete .ac-key { font: 10.5px/16px var(--mono); color: var(--muted); border: 1px solid var(--line-2); border-bottom-width: 1.5px; border-radius: 4px; padding: 0 5px; background: var(--panel-2); }
     #set-autocomplete .ac-under { display: block; width: fit-content; margin-top: 4px; }
     #set-autocomplete .ac-ghost { color: var(--faint); }
-    #set-autocomplete .ac-stats { display: flex; gap: 18px; flex-wrap: wrap; }
-    #set-autocomplete .ac-stats div b { display: block; font-size: 18px; }
+    #set-autocomplete .ac-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+    #set-autocomplete .ac-stats div { padding: 8px 12px; border-radius: var(--r-md); background: var(--panel-2); border: 1px solid var(--line); min-width: 96px; }
+    #set-autocomplete .ac-stats div b { display: block; font-size: 18px; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
     #set-autocomplete .ac-stats div span { color: var(--muted); font-size: 12px; }
   `;
   const style = document.createElement("style");

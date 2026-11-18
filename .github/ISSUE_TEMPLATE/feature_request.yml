@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest an idea or a plug-in for Glint.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the situation, not just the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like Glint to do?
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy impact
+      description: Would this send or store anything new? Glint stays local-first; say how this fits.
+  - type: dropdown
+    id: plugin
+    attributes:
+      label: Could it be a plug-in?
+      description: See docs/PLUGINS.md
+      options: [Yes, No / needs core changes, Not sure]
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to work on this

@@ -1,108 +1,200 @@
-# Glint
+<p align="center">
+  <img src="docs/images/logo.svg" width="96" height="96" alt="Glint logo">
+</p>
 
-**Everything you've seen on your Mac, a glint away.**
+<h1 align="center">Glint</h1>
 
-Glint is an open-source, privacy-first memory and AI assistant for macOS. It quietly reads the
-text of the windows you work in, keeps it on your Mac, groups your day into work sessions, and
-lets you ask questions about anything you've seen — with the AI model of your choice (Claude or
-OpenAI, using your own API key).
+<p align="center">
+  <b>Your Mac's memory. Private, local, open source.</b><br>
+  Glint remembers the text of everything you work on, turns your day into searchable work sessions,
+  and answers questions about it, with Apple's on-device model by default. No account. No cloud. No key required.
+</p>
 
-> Status: early (v0.1). Core capture, memory search, sessions, Ask, Quick Ask and Dictate work;
-> more features are landing. Expect rough edges.
+<p align="center">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-2f6f5e"></a>
+  <img alt="macOS 13.4+ on Apple silicon" src="https://img.shields.io/badge/macOS-13.4%2B%20%C2%B7%20Apple%20silicon-111">
+  <a href="https://github.com/Rikinshah787/Glint/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Rikinshah787/Glint?color=2f6f5e"></a>
+  <a href="CONTRIBUTING.md"><img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-6cc3a6"></a>
+</p>
 
-## What it does
+<p align="center">
+  <a href="https://github.com/Rikinshah787/Glint/releases/latest"><b>Download</b></a> ·
+  <a href="#try-it-in-30-seconds-no-permissions">Try the demo</a> ·
+  <a href="docs/features.md">Features</a> ·
+  <a href="docs/privacy.md">Privacy</a> ·
+  <a href="docs/mcp.md">Use with Claude &amp; Cursor</a> ·
+  <a href="docs/faq.md">FAQ</a>
+</p>
 
-- **Remembers your screen** — captures the text of the focused window via macOS Accessibility
-  (optional OCR fallback), skips password fields, password managers and private browser windows.
-- **Finds anything you saw** — hybrid search: SQLite full-text (BM25) + local MiniLM embeddings,
-  fused with reciprocal rank fusion. Runs entirely on your Mac.
-- **Work sessions** — your day split into sessions with an AI title, summary, focus/depth/
-  consistency/recovery scores and insights; a timeline of time per app.
-- **Ask** — chat with an agent that searches your memory, reads recent screens, reviews your day,
-  manages tasks, and remembers durable facts about you.
-- **Quick Ask** — `⌘⇧K` anywhere for a floating ask box (`/find`, `/summarize`, `/task`, `/log`).
-- **Dictate** — hold `Control` + `Option`, speak, release: cleaned-up text is typed where your
-  cursor is, in a style that fits the app (casual for chat, formal for email), with your own
-  dictionary.
-- **Tasks, bio and lasting memory** you and the assistant can edit.
+<p align="center">
+  <img src="docs/images/demo.gif" width="860" alt="Glint walkthrough: home, work sessions, timeline, knowledge graph, Ask with a chart, Quick Ask">
+</p>
+
+<sub>All screenshots use Glint's built-in demo data: a fictional week for "Maya Chen", a product manager at a made-up company.</sub>
+
+## Why Glint
+
+- **Local-first.** Captured text, embeddings, sessions and chats live in one SQLite file on your Mac.
+  Glint has no server and no account. Search runs entirely on-device.
+- **No API key needed.** On Macs with Apple Intelligence, Ask, summaries, autocomplete and dictation
+  cleanup run on Apple's on-device model. Prefer Claude or OpenAI? Add your own key; it stays in the Keychain.
+- **Text, not screenshots.** Glint reads window text through macOS Accessibility (with an optional OCR
+  fallback). That is small, fast to search, and skips password fields, password managers and private windows.
+- **Give your AI tools a memory of your Mac.** A built-in [MCP server](docs/mcp.md) lets Claude Desktop,
+  Claude Code and Cursor search what you've worked on, with per-app tokens and screen text off by default.
+- **Hackable.** Every feature is a [plug-in](docs/PLUGINS.md): one Python file, one JS file, optionally one Swift file.
+  MIT licensed.
+
+## Try it in 30 seconds (no permissions)
+
+See the whole UI on fictional demo data, in your browser. Nothing is captured and nothing is read from your Mac.
+
+```bash
+git clone https://github.com/Rikinshah787/Glint.git && cd Glint
+scripts/setup.sh      # Python 3.10+ → .venv
+scripts/demo.sh       # seeds a temp folder, starts the engine, opens http://127.0.0.1:47408/
+```
+
+Ask works in the demo too if Apple Intelligence is on, or if `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` is set.
+
+## Feature tour
+
+<table>
+<tr>
+<td width="50%"><b>Work sessions with AI reports</b><br>Your day, split into sessions with a title, summary, project, focus/depth/consistency/recovery scores and insights.<br><br>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/memory-sessions-dark.png"><img src="docs/images/memory-sessions-light.png" alt="Work sessions"></picture></td>
+<td width="50%"><b>Ask, with visual answers</b><br>An agent that searches your memory, reads recent screens, manages tasks, and draws charts and diagrams.<br><br>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/ask-chart-dark.png"><img src="docs/images/ask-chart-light.png" alt="Ask with a chart"></picture></td>
+</tr>
+<tr>
+<td><b>Knowledge graph</b><br>People, projects, documents, orgs and topics from your sessions, linked by when they show up together.<br><br>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/graph-dark.png"><img src="docs/images/graph-light.png" alt="Knowledge graph"></picture></td>
+<td><b>Quick Ask anywhere</b><br><kbd>⌘</kbd><kbd>⇧</kbd><kbd>K</kbd> over any app. It can see the window you're in and point at things on screen.<br><br>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/quick-ask-dark.png"><img src="docs/images/quick-ask-light.png" alt="Quick Ask"></picture></td>
+</tr>
+<tr>
+<td><b>Timeline</b><br>Every app and window, minute by minute, linked to the captured text.<br><br>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/timeline-dark.png"><img src="docs/images/timeline-light.png" alt="Timeline"></picture></td>
+<td><b>Home and insights</b><br>Where your time went this week, today's sessions, and patterns worth knowing.<br><br>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/home-dark.png"><img src="docs/images/home-light.png" alt="Home"></picture></td>
+</tr>
+</table>
+
+**Also in the box**
+
+| | |
+|---|---|
+| **Hybrid search** | SQLite FTS5 (BM25) + local MiniLM embeddings, fused with reciprocal rank fusion, plus session-level documents and entity aliases from the graph. |
+| **Autocomplete everywhere** | Inline suggestions in any text field; <kbd>Tab</kbd> accepts. Learns your voice per app, on-device. |
+| **Dictate** | Hold <kbd>⌃</kbd><kbd>⌥</kbd>, speak, release: cleaned-up text is typed at your cursor, styled for the app (casual for chat, formal for email). |
+| **Assist** | Tap <kbd>⌥</kbd><kbd>⌘</kbd> to draft into the focused field; optional suggestion cards with one-click actions and undo. |
+| **Glance** | <kbd>⌃</kbd><kbd>⇧</kbd><kbd>G</kbd> explains the current window in a small card. |
+| **Connectors** | Read-only Gmail, Drive and Calendar for Ask (your own Google OAuth client), and import what other assistants remember about you. |
+| **Tasks, skills, lasting memory** | Tasks with progress logs, `/skills` (saved prompts), a bio and a memory doc you and the assistant can edit. |
+
+Full list: [docs/features.md](docs/features.md).
+
+## Quick start
+
+**Download** the latest DMG from [Releases](https://github.com/Rikinshah787/Glint/releases/latest)
+(Apple silicon, macOS 13.4+), drag Glint to Applications, open it, and follow the setup wizard:
+
+1. Grant **Accessibility** (System Settings → Privacy & Security → Accessibility). Required to read window text.
+2. Pick an AI model: Apple's on-device model (macOS 26+ with Apple Intelligence turned on), or paste a Claude/OpenAI key.
+3. Work normally. Sessions appear in **Memory** as you go; press <kbd>⌘</kbd><kbd>⇧</kbd><kbd>K</kbd> to ask.
+
+**Build from source** (needs Xcode 26 or its Command Line Tools, and Python 3.10+):
+
+```bash
+git clone https://github.com/Rikinshah787/Glint.git && cd Glint
+make setup     # .venv with the engine's dependencies
+make run       # builds build/Glint.app and opens it
+```
+
+More: [docs/install.md](docs/install.md) (signing, permissions, packaging a DMG) and
+[docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Privacy
 
-- Captured text, embeddings, sessions and chats live in
-  `~/Library/Application Support/Glint` on your Mac. Nothing is uploaded by Glint.
-- Text is sent to an AI provider only when you use an AI feature (Ask, summaries, dictation
-  polish), and only to the provider you configured, with your key.
-- API keys are stored in the macOS Keychain.
-- Pause capture any time from the menu bar; block apps; set retention (14/30/90/365 days);
-  delete individual captures or everything.
-
-## Requirements
-
-- macOS 13 or later (Apple silicon or Intel)
-- Xcode Command Line Tools (`xcode-select --install`) for `swiftc`
-- Python 3.10+ (`brew install python@3.12`, or [uv](https://docs.astral.sh/uv/))
-- A Claude and/or OpenAI API key for AI features (search and capture work without one)
-
-## Install from source
-
-```bash
-git clone https://github.com/Rikinshah787/Glint.git
-cd Glint
-scripts/setup.sh                      # creates .venv and installs the engine's dependencies
-scripts/create-signing-identity.sh    # optional, once: keeps permissions across rebuilds
-scripts/build.sh --open               # builds build/Glint.app and opens it
-```
-
-Then grant **Accessibility** to Glint (System Settings → Privacy & Security → Accessibility) and
-add an API key in Glint → Settings → AI.
-
-If you created the signing identity, run `scripts/build.sh` once from Terminal and choose
-**Always Allow** when macOS asks whether `codesign` may use the key.
-
-## Permissions
-
-| Permission | Why | Required |
-|---|---|---|
-| Accessibility | read the text of the focused window; insert dictated text | yes |
-| Microphone | Dictate (only while you hold the keys) | for Dictate |
-| Speech Recognition | on-device transcription when no OpenAI key is set | optional |
-| Screen Recording | OCR fallback for apps without accessible text | optional |
-
-## Shortcuts
-
-| Keys | Action |
+| | |
 |---|---|
-| `⌘⇧K` | Quick Ask |
-| hold `⌃⌥` | Dictate (release to insert, `Esc` to cancel) |
+| **What's stored** | Window text (not pixels), app and window titles, site hostnames, timestamps, embeddings, session reports, chats, tasks. |
+| **Where** | `~/Library/Application Support/Glint` (one SQLite database + settings). API keys and Google tokens in the macOS Keychain. |
+| **What leaves the Mac** | Nothing, with the on-device model. With Claude or OpenAI, only the text a request needs goes to that provider, with your key. Favicons are fetched from sites you visited (can be turned off). Connectors talk to Google only if you connect them. |
+| **Never captured** | Password fields, password managers, private/incognito windows, Glint itself, and any app you block. |
+| **How to delete** | Delete single captures or sessions in Memory; delete all captured text or set retention (14/30/90/365 days) in Settings → Privacy; or quit Glint and remove the folder above to erase everything. |
 
-## How it's built
+Details, including exactly what each AI feature sends: [docs/privacy.md](docs/privacy.md).
+
+## How Glint compares
+
+| | Cloud memory / notes AI | Screenshot-based recorders | **Glint** |
+|---|---|---|---|
+| Where your data lives | Vendor's servers | Your Mac | **Your Mac** |
+| What is recorded | What you paste or sync | Screen images (+ OCR) | **Window text** (OCR optional) |
+| Storage footprint | n/a | Large (images) | **Small** (text + vectors) |
+| Works without an account or API key | Rarely | Varies | **Yes** (Apple's on-device model) |
+| Other AI apps can query it (MCP) | Varies | Varies | **Yes**, local and token-gated |
+| Source code | Usually closed | Varies | **MIT** |
+
+Trade-offs, honestly: Glint keeps text, not a visual replay of your screen; it is macOS-only, the DMG is
+Apple silicon only, and it is early software (v0.1).
+
+## Use your memory from Claude, Cursor and Claude Code
+
+Turn on Settings → AI apps, create a token, and paste the snippet Glint shows. Tools exposed:
+`search_memory`, `get_recent_context`, `get_today_activity`, `list_tasks`. Setup for each client:
+[docs/mcp.md](docs/mcp.md).
+
+## Architecture
 
 ```
-mac/        Swift shell: menu bar, windows, Quick Ask panel, hotkeys, dictation
-mac/capture GlintCapture: reads the frontmost window's text (Accessibility, OCR fallback)
-engine/     Python engine (localhost API): capture loop, sessions, memory, Ask agent
-web/        The UI (HTML/JS) shown in the app's web views
-scripts/    setup, build, signing
-docs/       PLUGINS.md — how to add a feature
+Glint.app (Swift)  ── menu bar, windows, hotkeys, Quick Ask, dictation, autocomplete, overlays
+   │  WKWebView ── web/ (HTML/JS UI)
+   ▼
+engine (Python, 127.0.0.1 + per-launch token)
+   ├─ capture loop ── glint-capture (Accessibility, OCR fallback)
+   ├─ memory ── SQLite FTS5 + MiniLM embeddings (fastembed/ONNX) → hybrid search (RRF)
+   ├─ sessions, graph, Ask agent, assist, autocomplete, visual, connectors (engine/features/*)
+   ├─ AI ── glint-llm (Apple FoundationModels) | Claude | OpenAI
+   └─ MCP server (127.0.0.1, bearer tokens)
 ```
 
-The engine listens only on `127.0.0.1` and requires a per-launch token for every API call.
-Features plug in without touching the core — see [docs/PLUGINS.md](docs/PLUGINS.md).
+More in [docs/architecture.md](docs/architecture.md). Writing a feature: [docs/PLUGINS.md](docs/PLUGINS.md).
 
-## Development
+## FAQ
 
-```bash
-.venv/bin/python engine/tests/test_memory.py          # memory/search tests
-GLINT_HOME=$(mktemp -d) GLINT_NO_CAPTURE=1 .venv/bin/python engine/engine.py   # headless engine
-```
+**Does Glint record my screen?** No video and no screenshots are stored. It reads text through Accessibility.
+Quick Ask and Glance can attach a screenshot of the current window to a single AI request if you grant Screen
+Recording; it is not saved to memory. → [docs/faq.md](docs/faq.md)
 
-`engine/memory.py` also works as a CLI (`.venv/bin/python engine/memory.py search "…"`).
+**Is it free?** Yes, MIT. With Apple's on-device model there is nothing to pay for. Cloud models bill your own account.
+
+**How much disk does it use?** Mostly text and small vectors: the demo week (about 1,600 captures across 31 sessions) is under 6 MB. Add ~90 MB once for the embedding model.
+
+**Can I use it on Intel or Windows?** The released DMG is Apple silicon only; there is no Windows or Linux version.
+
+More: [docs/faq.md](docs/faq.md) · [docs/troubleshooting.md](docs/troubleshooting.md)
+
+## Roadmap
+
+Ideas we want to build, not promises. Discuss or pick one up in [Issues](https://github.com/Rikinshah787/Glint/issues).
+
+- [ ] Signed and notarized releases for every tag
+- [ ] More connectors (read-only): calendar and mail providers beyond Google, local folders
+- [ ] Export your memory (Markdown / JSON) and per-project retention
+- [ ] Richer MCP tools (sessions, graph queries) with per-tool permissions
+- [ ] Plug-in gallery and a template repo for community features
+- [ ] Localized UI
 
 ## Contributing
 
-Issues and pull requests are welcome. Keep features in their own plug-in files where possible,
-keep everything local-first, and never log or upload captured text.
+PRs welcome, small or large. Start with [CONTRIBUTING.md](CONTRIBUTING.md): `scripts/demo.sh` gives you the full UI
+on fake data, and most features live in a single plug-in file. Please read the
+[Code of Conduct](CODE_OF_CONDUCT.md); report security issues privately per [SECURITY.md](SECURITY.md).
 
 ## License
 
 [MIT](LICENSE)
+
+<p align="center"><b>If Glint is useful to you, a ⭐ helps other people find it.</b></p>

@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests and static checks
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      GLINT_CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: engine/requirements.txt
+
+      - name: Install engine dependencies
+        run: python -m pip install -r engine/requirements.txt
+
+      # The tests reuse ~/Library/Application Support/Glint/models; cache the MiniLM download.
+      - name: Cache embedding model
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Application Support/Glint/models
+          key: glint-minilm-l6-v2-${{ hashFiles('engine/requirements.txt') }}
+          restore-keys: glint-minilm-l6-v2-
+
+      - name: Engine tests (memory + retrieval eval)
+        run: make test PYTHON=python
+
+      # node --check on the web UI, py_compile on the engine, swiftc -typecheck on all Swift sources.
+      # The FoundationModels helper is typechecked only when the runner's SDK ships that framework.
+      - name: Static checks
+        run: make check PYTHON=python
+
+  package:
+    name: Package app + DMG (smoke)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache python-build-standalone
+        uses: actions/cache@v4
+        with:
+          path: dist/.cache
+          key: glint-pbs-${{ hashFiles('scripts/package.sh') }}
+
+      - name: Build dist/Glint.app
+        run: scripts/package.sh
+        env:
+          GLINT_BUILD_NUMBER: ${{ github.run_number }}
+
+      - name: Build and verify DMG
+        run: scripts/make-dmg.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Glint-dmg-${{ github.sha }}
+          path: |
+            dist/*.dmg
+            dist/*.sha256
+          retention-days: 7

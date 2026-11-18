@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Hardened-runtime entitlements for Glint.app (Developer ID builds; harmless when ad-hoc signed).
+     Only what Glint needs: microphone for hold-to-dictate. Accessibility, Screen Recording and
+     Speech Recognition are TCC prompts and need no entitlement. The embedded Python gets its own
+     entitlements from scripts/package.sh (library validation off for pip wheels, executable memory
+     for cffi/ctypes callbacks). -->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
+</dict>
+</plist>

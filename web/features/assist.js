@@ -4,7 +4,7 @@
   const USED = ["inserted", "applied", "copied", "opened"];
   const OUT_LABEL = { inserted: "Inserted", applied: "Inserted", copied: "Copied", opened: "Opened", dismissed: "Dismissed",
     ignored: "Not opened", undone: "Undone", stale: "Out of date", failed: "Failed", drafted: "Drafted", offered: "Offered", shown: "Viewed" };
-  const icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>';
+  const icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/><path d="M19 15.5v4M17 17.5h4"/></svg>';
   const esc = HS.esc;
   const state = { outcome: "", kind: "", app: "", q: "" };
   let items = [];
@@ -19,7 +19,7 @@
         <div class="seg-ctl" id="asOutcome"><button data-o="" class="on">All</button><button data-o="used">Used</button><button data-o="dismissed">Dismissed</button></div>
         <select id="asKind"><option value="">Drafts and cards</option><option value="draft">Drafts</option><option value="card">Cards</option></select>
         <select id="asApp"><option value="">All apps</option></select>
-        <input type="search" id="asQ" placeholder="Search drafts and cards">
+        <span class="search"><input type="search" id="asQ" placeholder="Search drafts and cards" aria-label="Search drafts and cards"></span>
       </div>
       <div id="asList"></div>`,
     onShow: load,
@@ -30,9 +30,11 @@
   function render() {
     const list = view.querySelector("#asList");
     if (!items.length) {
-      list.innerHTML = `<div class="card empty">${state.q || state.kind || state.outcome || state.app
-        ? "Nothing matches these filters."
-        : "Nothing yet. Tap the assist chord in any text field to get a draft, hold it for Quick Ask, or double-tap it for the edge panel."}</div>`;
+      const filtered = state.q || state.kind || state.outcome || state.app;
+      list.innerHTML = `<div class="card">${HS.emptyState ? HS.emptyState(filtered
+        ? { art: "search", title: "Nothing matches these filters", body: "Clear a filter or search for something else." }
+        : { art: "chat", title: "No drafts or suggestions yet", body: "Tap the assist chord in any text field to get a draft, hold it for Quick Ask, or double-tap it for the edge panel." })
+        : "Nothing yet."}</div>`;
       return;
     }
     list.innerHTML = items.map((it, i) => {

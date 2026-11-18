@@ -184,10 +184,12 @@ final class AutocompleteFeature: GlintFeature {
                                            eventsOfInterest: mask, callback: autocompleteTapCallback,
                                            userInfo: Unmanaged.passUnretained(self).toOpaque()) else {
             NSLog("Glint: autocomplete key tap unavailable (Accessibility?)")
+            NativeLog.write("ac-tap", "autocomplete: could not start the keyboard tap (grant Accessibility)", every: 60)
             DispatchQueue.main.async { self.tapThread = nil }
             return
         }
         tapPort = port
+        NativeLog.write("ac-tap-ok", "autocomplete: keyboard tap running", every: 1)
         let src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, port, 0)
         CFRunLoopAddSource(CFRunLoopGetCurrent(), src, .commonModes)
         CGEvent.tapEnable(tap: port, enable: true)
@@ -334,8 +336,15 @@ final class AutocompleteFeature: GlintFeature {
     }
 
     private func requestSuggestion(summoned: Bool) {
-        guard enabled, engineUp, shown == nil, AXIsProcessTrusted(), !IsSecureEventInputEnabled(),
-              let front = NSWorkspace.shared.frontmostApplication, !excluded(front) else { return }
+        guard enabled, engineUp, shown == nil, let front = NSWorkspace.shared.frontmostApplication else { return }
+        let appLabel = front.localizedName ?? "?"
+        if !AXIsProcessTrusted() { NativeLog.write("ac-ax", "autocomplete: Accessibility not granted"); return }
+        if IsSecureEventInputEnabled() {
+            NativeLog.write("ac-secure", "autocomplete: secure keyboard input is on (a password field or a terminal's "
+                            + "Secure Keyboard Entry), so nothing can be suggested", every: 30)
+            return
+        }
+        if excluded(front) { NativeLog.write("ac-ex-\(appLabel)", "autocomplete: \(appLabel) is excluded", every: 60); return }
         let gen = generation
         let pid = front.processIdentifier
         let name = front.localizedName ?? ""
@@ -345,8 +354,23 @@ final class AutocompleteFeature: GlintFeature {
         if needManual { manualAXDone.insert(pid) }
         let minNeeded = summoned ? 1 : minChars
         axQueue.async { [weak self] in
-            if needManual { Self.enableManualAccessibility(pid: pid, bundleID: bid, bundleURL: bundleURL) }
-            let r = Self.readField(pid: pid, appName: name, bundleID: bid, minChars: minNeeded)
+            var r: ACRead
+            if needManual {
+                Self.enableManualAccessibility(pid: pid, bundleID: bid, bundleURL: bundleURL)
+                r = Self.readField(pid: pid, appName: name, bundleID: bid, minChars: minNeeded)
+                if case .skip(let why) = r, ["no_focus", "not_text", "no_text"].contains(why) {
+                    usleep(350_000)  // Chromium builds its web accessibility tree on first request
+                    r = Self.readField(pid: pid, appName: name, bundleID: bid, minChars: minNeeded)
+                }
+            } else {
+                r = Self.readField(pid: pid, appName: name, bundleID: bid, minChars: minNeeded)
+            }
+            switch r {
+            case .skip(let why):
+                NativeLog.write("ac-skip-\(name)-\(why)", "autocomplete: skip \(why) in \(name)", every: 10)
+            case .ok:
+                NativeLog.write("ac-ok-\(name)", "autocomplete: asking for a suggestion in \(name)", every: 30)
+            }
             DispatchQueue.main.async {
                 guard let self, gen == self.generation, self.shown == nil else { return }
                 if case .ok(let field) = r { self.send(field, gen: gen, summoned: summoned) }
@@ -432,6 +456,15 @@ final class AutocompleteFeature: GlintFeature {
         }
         if caret == nil, let r = bounds(focused, location: loc, length: 0) {
             caret = CGRect(x: r.minX, y: r.minY, width: 1, height: r.height)
+        }
+        if caret == nil, let pos = attr(focused, kAXPositionAttribute), let size = attr(focused, kAXSizeAttribute),
+           CFGetTypeID(pos) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID() {
+            // No caret geometry (common for web text boxes): anchor to the field's lower-left corner.
+            var p = CGPoint.zero, sz = CGSize.zero
+            if AXValueGetValue(pos as! AXValue, .cgPoint, &p), AXValueGetValue(size as! AXValue, .cgSize, &sz), sz.height > 4 {
+                let lineH = min(22, max(14, sz.height))
+                caret = CGRect(x: p.x + 8, y: p.y + sz.height - lineH - 4, width: 1, height: lineH)
+            }
         }
         guard let caretRect = caret else { return .skip("no_bounds") }
 

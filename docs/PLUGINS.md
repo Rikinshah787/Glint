@@ -71,3 +71,25 @@ Then add `MyFeature(app: app),` to `makeFeatures` in `mac/Features.swift`. Avail
 delegate: `engine` (`request(path, body, completion)`), `makeWebView(bridge:transparent:)`,
 `bridge`, `showMain(path:)`, `toggleQuickAsk()`, `settings`, and the `HotKey` helper
 (Carbon global hotkeys; pick a unique id).
+
+## Developing a feature against demo data
+
+You don't need to grant permissions or use your own data to build the engine and web parts:
+
+```bash
+scripts/demo.sh --keep        # fictional week of data, engine on http://127.0.0.1:47408/
+```
+
+The demo engine loads `engine/features/*.py` and `web/features/*` like the app does, so your feature shows up
+after a restart of the script. To give it realistic data, add a few rows in `engine/demo.py`
+(`Seeder.add_extras`) or content in `engine/demo_data.py`, using your feature's own `SCHEMA` (the seeder
+creates any `SCHEMA` / `SCHEMA_SQL` string a feature module defines). Keep demo content fictional.
+
+Native (`mac/`) features still need the real app (`make run`).
+
+## Checklist for a new feature
+
+- Settings defaults in `E.DEFAULT_SETTINGS` and an on/off switch in Settings.
+- Nothing captured is logged; anything sent off the Mac is listed in `docs/privacy.md`.
+- Errors a user can fix raise `ValueError` / `ai.ProviderError` with a clear message.
+- A short entry in `docs/features.md`; if it has a screen, a shot in `scripts/screenshots.mjs` (`SHOTS`).

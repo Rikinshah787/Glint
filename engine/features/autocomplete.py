@@ -253,7 +253,7 @@ def samples_for(app_key: str, limit: int = 5) -> list[str]:
 
 
 def build_prompt(b: dict, n: int) -> str:
-    app, title, host = b.get("app") or "", b.get("title") or "", b.get("url_host") or ""
+    app, title, host = b.get("app") or "", clean_title(b.get("title") or ""), b.get("url_host") or ""
     before = b.get("text_before") or ""
     after = b.get("text_after") or ""
     parts = [f"App: {app}" + (f" · {host}" if host else "") + (f"\nWindow: {title[:160]}" if title else "")]
@@ -348,7 +348,16 @@ def _release() -> None:
 ON_DEVICE_INSTRUCTIONS = (
     "You are inline autocomplete. Start by repeating the last few words of the user's text exactly, "
     "then continue it naturally with at most 10 more words that finish their thought. Match their tone. "
-    "Output only that, on one line: no quotes, no explanation. Never invent names, numbers or dates.")
+    "Output only that, on one line: no quotes, no explanation. Never add people's names, numbers or dates "
+    "that do not already appear in the user's text.")
+
+BROWSER_SUFFIX = re.compile(r"\s+[-–—]\s+(Google Chrome|Chromium|Brave|Microsoft Edge|Arc|Safari|Firefox)"
+                            r"(\s+[-–—]\s+.*)?$")
+
+
+def clean_title(title: str) -> str:
+    """Drop the browser name and profile label (e.g. ' - Google Chrome - Work') from window titles."""
+    return BROWSER_SUFFIX.sub("", title or "").strip()
 
 
 def align_continuation(before: str, out: str) -> str:
@@ -367,7 +376,7 @@ def align_continuation(before: str, out: str) -> str:
 
 
 def _call_on_device(b: dict) -> list[str]:
-    app, title = b.get("app") or "", (b.get("title") or "")[:80]
+    app, title = b.get("app") or "", clean_title(b.get("title") or "")[:80]
     before = b.get("text_before") or ""
     samples = samples_for(_app_key(app, b.get("url_host")))[:2]
     prompt = (f"App: {app}" + (f" — {title}" if title else "") + "\n"
@@ -393,6 +402,18 @@ def _call(provider, prompt: str, n: int, b: dict, key: tuple) -> tuple[list[str]
         return sugg, reason
     finally:
         _release()
+
+
+def _warm_up() -> None:
+    """Load the on-device model at launch so the first real suggestion isn't a cold start."""
+    try:
+        s = _settings()
+        if s.get("autocomplete_enabled") and s.get("fast_on_device", True) and ai.apple_available():
+            t0 = time.time()
+            _call_on_device({"app": "Notes", "title": "", "text_before": "Thanks for the update, I will"})
+            E.log(f"autocomplete warm-up {int((time.time() - t0) * 1000)} ms")
+    except Exception as e:
+        E.log(f"autocomplete warm-up skipped: {e}")
 
 
 def suggest(b: dict) -> dict:
@@ -445,7 +466,8 @@ def _suggest(b: dict) -> dict:
         E.log(f"autocomplete prompt failed: {e}")
         return quiet("error")
     fut = _pool.submit(_call, provider, prompt, n, b, key)
-    budget = max(0.2, TIME_BUDGET_S - (time.time() - t0))
+    limit = TIME_BUDGET_S + (1.0 if isinstance(provider, ai.AppleProvider) else 0.0)
+    budget = max(0.2, limit - (time.time() - t0))
     try:
         sugg, reason = fut.result(timeout=budget)
     except FutureTimeout:
@@ -573,6 +595,7 @@ def clear(b: dict) -> dict:
 
 def register():
     E.POST_ROUTES["/api/autocomplete/suggest"] = suggest
+    E.STARTUP_HOOKS.append(_warm_up)
     E.POST_ROUTES["/api/autocomplete/outcome"] = outcome
     E.POST_ROUTES["/api/autocomplete/clear"] = clear
     E.GET_ROUTES["/api/autocomplete/stats"] = stats

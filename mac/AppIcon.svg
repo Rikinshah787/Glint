@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Glint app icon</title>
+  <!-- Source for the .icns. macOS icon grid: 824×824 body at (100,100), corner radius 185, soft drop shadow. -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4aa588"/>
+      <stop offset=".55" stop-color="#2b6b5a"/>
+      <stop offset="1" stop-color="#163a31"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx=".28" cy=".18" r=".75">
+      <stop offset="0" stop-color="#fff" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="spark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff4d6"/>
+      <stop offset="1" stop-color="#f2b84b"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000" flood-opacity=".28"/>
+    </filter>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="16"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#body)"/>
+  </g>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#sheen)"/>
+  <rect x="101" y="101" width="822" height="822" rx="184" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="2"/>
+  <g transform="translate(224 224) scale(24)">
+    <path d="M17.05 13.32A6.6 6.6 0 1 1 10.68 6.95" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M17.45 2.65Q18.05 5.95 21.35 6.55 18.05 7.15 17.45 10.45 16.85 7.15 13.55 6.55 16.85 5.95 17.45 2.65Z" fill="#f2b84b" opacity=".55" filter="url(#glow)" transform="translate(0 0)"/>
+    <path d="M17.45 2.65Q18.05 5.95 21.35 6.55 18.05 7.15 17.45 10.45 16.85 7.15 13.55 6.55 16.85 5.95 17.45 2.65Z" fill="url(#spark)"/>
+  </g>
+</svg>

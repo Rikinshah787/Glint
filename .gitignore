@@ -12,3 +12,5 @@ bin/
 *.db-wal
 *.db-shm
 .env
+# Release artifacts (scripts/package.sh, scripts/make-dmg.sh)
+dist/

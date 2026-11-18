@@ -10,14 +10,14 @@
     .cx-help ol { margin: 8px 0 0; padding-left: 20px; color: var(--muted); }
     .cx-help li { margin: 3px 0; }
     .cx-list { display: flex; flex-direction: column; gap: 6px; width: 100%; }
-    .cx-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; }
+    .cx-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel-2); }
     .cx-item .grow { flex: 1; min-width: 0; }
     .cx-item small { color: var(--muted); display: block; }
-    .cx-pre { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--panel-2); border-radius: 9px; padding: 10px; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; max-height: 220px; overflow: auto; }
-    .cx-tabs { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; margin-top: 8px; }
-    .cx-tabs button { border: 0; border-radius: 0; padding: 5px 11px; font-size: 12.5px; }
-    .cx-tabs button.on { background: var(--accent); color: #fff; }
-    .cx-new { border: 1px solid var(--accent); background: var(--accent-2); border-radius: var(--radius, 12px); padding: 12px; margin-top: 10px; width: 100%; }
+    .cx-pre { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px 12px; font: 12px/1.5 var(--mono); max-height: 220px; overflow: auto; }
+    .cx-tabs { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--r-md); background: var(--panel-3); margin-top: 10px; }
+    .cx-tabs button { border: 0; border-radius: var(--r-sm); min-height: 26px; padding: 3px 11px; font-size: 12.5px; background: transparent; box-shadow: none; color: var(--muted); }
+    .cx-tabs button.on { background: var(--raised); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+    .cx-new { border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); background: var(--accent-2); border-radius: var(--r-lg); padding: 14px; margin-top: 10px; width: 100%; }
     .cx-warn { color: var(--warn); font-size: 12.5px; }
     .cx-stack { flex: 1; flex-direction: column; align-items: stretch !important; }
   `;

@@ -12,6 +12,12 @@
   const ICON = {
     home: svg('<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10"/>'),
     skills: svg('<path d="M4 5h11l5 5v9H4z"/><path d="M15 5v5h5M8 13h8M8 16.5h5"/>'),
+    ask: svg('<path d="M20 11.5c0 4.1-3.6 7.5-8 7.5-1.2 0-2.4-.25-3.4-.7L4 19.5l1.1-3.6A7.2 7.2 0 0 1 4 11.5C4 7.4 7.6 4 12 4s8 3.4 8 7.5Z"/>'),
+    bolt: svg('<path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/>'),
+    search: svg('<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>'),
+    slash: svg('<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="m14 8-4 8"/>'),
+    clock: svg('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),
+    gear: svg('<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/>'),
     up: svg('<path d="M7 10v10H4V10zM7 10l4-7c1.5 0 2.5 1 2.2 2.6L12.6 9H19a2 2 0 0 1 2 2.3l-1.2 6.8A2 2 0 0 1 17.8 20H7"/>'),
     down: svg('<path d="M7 14V4H4v10zM7 14l4 7c1.5 0 2.5-1 2.2-2.6L12.6 15H19a2 2 0 0 0 2-2.3l-1.2-6.8A2 2 0 0 0 17.8 4H7"/>'),
   };
@@ -19,68 +25,98 @@
   /* ------------------------------------------------------------------ styles */
   const css = document.createElement("style");
   css.textContent = `
-  .sh-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.3fr); gap: 14px; margin-bottom: 14px; }
+  .sh-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.3fr); gap: 16px; margin-bottom: 16px; }
   .sh-pad { padding: 16px 18px; }
-  .sh-now { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
-  .sh-now .sh-app { font-size: 20px; font-weight: 650; letter-spacing: -.01em; display: flex; align-items: center; gap: 10px; }
-  .sh-now .state { color: var(--muted); }
-  .sh-now .acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
-  .sh-now .elapsed { font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 600; }
-  .sh-chart svg { width: 100%; height: auto; display: block; margin-top: 8px; }
+  .sh-grid.rev { grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); }
+  .sh-now { position: relative; overflow: hidden; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px;
+    background: radial-gradient(120% 100% at 100% 0%, var(--accent-2), transparent 62%), var(--panel); }
+  .sh-now-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .sh-pill { display: inline-flex; align-items: center; gap: 7px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 500;
+    color: var(--muted); background: var(--panel); border: 1px solid var(--line); }
+  .sh-now .sh-app { font-size: 21px; font-weight: 680; letter-spacing: -.022em; display: flex; align-items: center; gap: 10px; margin-top: 6px; min-width: 0; }
+  .sh-now .sh-app .aic { width: 28px; height: 28px; border-radius: 8px; font-size: 13px; }
+  .sh-now .state { color: var(--muted); font-size: 13px; }
+  .sh-now .sess-line { font-size: 13px; color: var(--muted); }
+  .sh-now .elapsed { font-variant-numeric: tabular-nums; color: var(--text); font-weight: 650; font-size: 13px; }
+  .sh-now .acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 10px; }
+  .sh-chart svg { width: 100%; height: auto; display: block; margin-top: 10px; }
   .sh-chart text { fill: var(--muted); font-size: 12px; }
   .sh-chart .val { fill: var(--text); font-size: 11.5px; font-weight: 600; }
   .sh-links { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-top: 12px; }
-  .sh-links button { text-align: left; padding: 10px 12px; border-radius: 11px; }
-  .sh-links small { display: block; color: var(--muted); font-size: 12px; }
-  .sh-recent div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; cursor: pointer; }
-  .sh-recent div:last-child { border-bottom: 0; }
-  .sh-skills { display: grid; grid-template-columns: 280px minmax(0,1fr); gap: 14px; align-items: start; }
-  .sh-sklist { padding: 10px; max-height: calc(100vh - 220px); overflow: auto; }
-  .sh-sklist input { width: 100%; margin-bottom: 8px; }
-  .sh-sk { padding: 9px 10px; border-radius: 9px; cursor: pointer; }
-  .sh-sk:hover { background: var(--panel-2); } .sh-sk.on { background: var(--accent-2); }
-  .sh-sk code { font-size: 11.5px; } .sh-sk div { color: var(--muted); font-size: 12px; }
-  .sh-sked { padding: 18px; }
+  .sh-links button { justify-content: flex-start; text-align: left; gap: 11px; padding: 9px 10px; min-height: 54px; border-radius: var(--r-lg); font-weight: 600; box-shadow: none; background: var(--panel); border-color: var(--line); }
+  .sh-links button:hover:not(:disabled) { border-color: var(--line-2); background: var(--panel-2); }
+  .sh-links .ic { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex: none; background: var(--accent-2); color: var(--accent); }
+  .sh-links .ic svg { width: 17px; height: 17px; }
+  .sh-links span:last-child { min-width: 0; }
+  .sh-links small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sh-recent > div { display: grid; grid-template-columns: 70px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 9px 4px; border-bottom: 1px solid var(--line); font-size: 13px; cursor: pointer; border-radius: 6px; }
+  .sh-recent > div:hover { background: var(--hover); }
+  .sh-recent > div:last-child { border-bottom: 0; }
+  .sh-recent .tm { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .sh-recent .ttl { display: flex; gap: 8px; align-items: center; min-width: 0; font-weight: 500; }
+  .sh-recent .ttl span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sh-score { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent); background: var(--accent-2); border-radius: 999px; padding: 1px 8px; }
+  .sh-recent .foot { display: block; cursor: default; color: var(--muted); font-size: 12.5px; padding-top: 12px; }
+  .sh-recent .foot:hover { background: none; }
+  .sh-skills { display: grid; grid-template-columns: 280px minmax(0,1fr); gap: 16px; align-items: start; }
+  .sh-sklist { padding: 8px; max-height: calc(100vh - 220px); overflow: auto; }
+  .sh-sklist input { width: 100%; margin-bottom: 6px; }
+  .sh-sk { padding: 9px 10px; border-radius: var(--r-md); cursor: pointer; }
+  .sh-sk:hover { background: var(--hover); } .sh-sk.on { background: var(--accent-2); }
+  .sh-sk b { font-weight: 600; }
+  .sh-sk code { font-size: 11px; color: var(--accent); background: var(--accent-2); margin-left: 4px; } .sh-sk div { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .sh-sked { padding: 18px 20px; }
   .sh-sked .row { display: grid; grid-template-columns: 1fr 200px; gap: 10px; margin-bottom: 10px; }
   .sh-sked input, .sh-sked textarea { width: 100%; }
+  .sh-sked #skName { font-size: 15px; font-weight: 600; }
+  .sh-sked #skTrig { font-family: var(--mono); font-size: 12.5px; color: var(--accent); }
   .sh-sked .panes { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; }
-  .sh-sked textarea { min-height: 300px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
-  .sh-preview { border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; min-height: 300px; max-height: 520px; overflow: auto; background: var(--panel-2); }
-  .sh-preview p { margin: 0 0 8px; }
-  .sh-sked .acts { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .sh-sked textarea { min-height: 300px; font: 12.5px/1.6 var(--mono); resize: vertical; }
+  .sh-preview { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 12px 14px; min-height: 300px; max-height: 520px; overflow: auto; background: var(--panel-2); font-size: 13px; }
+  .sh-preview p { margin: 0 0 8px; } .sh-preview h4 { margin: 4px 0 8px; } .sh-preview ol, .sh-preview ul { padding-left: 20px; margin: 4px 0 8px; }
+  .sh-sked .acts { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
   .sh-idea { padding: 16px 18px; margin-bottom: 10px; }
+  .sh-idea > div:first-child b { font-size: 14.5px; font-weight: 620; }
   .sh-idea p { margin: 6px 0 0; } .sh-idea .muted { font-size: 13px; }
   .sh-rate { display: inline-flex; gap: 4px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
-  .sh-rate button { padding: 2px 6px; border-radius: 7px; line-height: 0; color: var(--faint); background: transparent; border-color: transparent; }
-  .sh-rate button svg { width: 15px; height: 15px; }
-  .sh-rate button:hover { color: var(--text); }
+  .sh-rate button { min-height: 24px; height: 24px; padding: 0 6px; border-radius: var(--r-sm); color: var(--faint); background: transparent; border-color: transparent; box-shadow: none; }
+  .sh-rate button svg { width: 14px; height: 14px; }
+  .sh-rate button:hover:not(:disabled) { color: var(--text); background: var(--hover); }
   .sh-rate button.on { color: var(--accent); background: var(--accent-2); }
-  .sh-rate .why { font-size: 11.5px; line-height: 1.4; padding: 2px 8px; color: var(--muted); border-color: var(--line); }
+  .sh-rate .why { font-size: 11.5px; font-weight: 500; line-height: 1.4; padding: 0 9px; color: var(--muted); border-color: var(--line); border-radius: 999px; }
   .sh-rate .why.on { color: var(--accent); }
-  .sh-wiz { position: fixed; inset: 0; z-index: 9; background: var(--bg); display: none; place-items: center; padding: 24px; overflow: auto; }
-  .sh-wiz.on { display: grid; }
-  .sh-wiz .box { width: min(640px, 100%); padding: 28px 30px; }
-  .sh-wiz .bar { height: 4px; border-radius: 3px; background: var(--panel-2); overflow: hidden; margin-bottom: 6px; }
-  .sh-wiz .bar i { display: block; height: 100%; background: var(--accent); transition: width .25s; }
-  .sh-wiz .stepn { color: var(--faint); font-size: 12px; margin-bottom: 18px; }
-  .sh-wiz h2 { margin: 0 0 6px; font-size: 24px; letter-spacing: -.02em; }
-  .sh-wiz .lead { color: var(--muted); margin: 0 0 18px; }
-  .sh-wiz .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; gap: 10px; }
+  .sh-wiz { position: fixed; inset: 0; z-index: 20; background: radial-gradient(80% 60% at 50% 0%, var(--accent-2), transparent 70%), var(--bg); display: none; place-items: center; padding: 24px; overflow: auto; }
+  .sh-wiz.on { display: grid; animation: fadeIn var(--t-med) var(--ease-out); }
+  .sh-wiz .box { width: min(620px, 100%); padding: 28px 32px 24px; border-radius: 20px; box-shadow: var(--shadow-pop); }
+  .sh-wiz .bar { height: 4px; border-radius: 3px; background: var(--panel-3); overflow: hidden; margin: 0 0 8px; }
+  .sh-wiz .bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .35s var(--ease-out); }
+  .sh-wiz .stepn { color: var(--faint); font-size: 12px; font-weight: 500; margin-bottom: 22px; }
+  .sh-wiz .hero { width: 52px; height: 52px; border-radius: 15px; margin-bottom: 18px; }
+  .sh-wiz h2 { margin: 0 0 6px; font-size: 24px; font-weight: 680; letter-spacing: -.025em; }
+  .sh-wiz .lead { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+  .sh-wiz ul.feat { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+  .sh-wiz ul.feat li { position: relative; padding-left: 30px; }
+  .sh-wiz ul.feat li::before { content: ""; position: absolute; left: 0; top: 1px; width: 20px; height: 20px; border-radius: 6px; background: var(--accent-2); }
+  .sh-wiz ul.feat li::after { content: ""; position: absolute; left: 4px; top: 5px; width: 12px; height: 12px; background: var(--accent);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5c.5 4.9 2.6 7 7.5 7.5-4.9.5-7 2.6-7.5 7.5-.5-4.9-2.6-7-7.5-7.5 4.9-.5 7-2.6 7.5-7.5Z'/%3E%3C/svg%3E") center / contain no-repeat; }
+  .sh-wiz .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 26px; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
   .sh-wiz .foot div { display: flex; gap: 8px; }
-  .sh-choices { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
-  .sh-choices button { text-align: left; padding: 12px 14px; border-radius: 12px; }
-  .sh-choices button.on { border-color: var(--accent); background: var(--accent-2); }
-  .sh-choices small { display: block; color: var(--muted); }
-  .sh-perm { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; }
-  .sh-perm small { display: block; color: var(--muted); }
-  .sh-ok { color: var(--accent); font-weight: 600; } .sh-no { color: var(--warn); }
-  .sh-appchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; max-height: 200px; overflow: auto; }
-  .sh-appchips button { padding: 4px 10px; border-radius: 999px; font-size: 12.5px; }
-  .sh-appchips button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .sh-slash { position: absolute; bottom: calc(100% + 6px); left: 0; right: 0; padding: 6px; display: none; max-height: 240px; overflow: auto; z-index: 6; }
-  .sh-slash.on { display: block; }
-  .sh-slash div { padding: 6px 10px; border-radius: 8px; cursor: pointer; display: flex; gap: 10px; }
-  .sh-slash div.on, .sh-slash div:hover { background: var(--panel-2); }
+  .sh-wiz .field { grid-template-columns: 140px 1fr; }
+  .sh-choices { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+  .sh-choices button { display: block; text-align: left; padding: 11px 14px; min-height: 0; border-radius: var(--r-lg); font-weight: 600; box-shadow: none; }
+  .sh-choices button.on { border-color: var(--accent); background: var(--accent-2); box-shadow: 0 0 0 1px var(--accent); }
+  .sh-choices small { display: block; color: var(--muted); font-weight: 400; margin-top: 2px; }
+  .sh-perm { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-lg); margin-bottom: 10px; background: var(--panel); }
+  .sh-perm b { font-weight: 600; } .sh-perm small { display: block; color: var(--muted); }
+  .sh-ok { color: var(--ok); font-weight: 600; } .sh-no { color: var(--warn); }
+  .sh-appchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; max-height: 200px; overflow: auto; }
+  .sh-appchips button { min-height: 26px; padding: 2px 11px; border-radius: 999px; font-size: 12.5px; box-shadow: none; }
+  .sh-appchips button.on { background: var(--accent); border-color: transparent; color: var(--on-accent); }
+  .sh-slash { position: absolute; bottom: calc(100% + 8px); left: 0; right: 0; padding: 5px; display: none; max-height: 260px; overflow: auto; z-index: 6; box-shadow: var(--shadow-pop); border-radius: var(--r-lg); }
+  .sh-slash.on { display: block; animation: popIn var(--t-fast) var(--ease-out); }
+  .sh-slash div { padding: 7px 10px; border-radius: var(--r-sm); cursor: pointer; display: flex; gap: 10px; align-items: center; }
+  .sh-slash div.on, .sh-slash div:hover { background: var(--accent-2); }
+  .sh-slash code { color: var(--accent); background: none; padding: 0; font-weight: 600; }
   .sh-slash span { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   @media (max-width: 860px) { .sh-grid, .sh-skills, .sh-sked .panes, .sh-choices, .sh-links { grid-template-columns: 1fr; } }
   `;
@@ -91,22 +127,22 @@
     id: "home", label: "Home", icon: ICON.home, onShow: loadHome,
     html: `
       <div class="head"><div><h1 id="shGreet">Hello</h1><div class="sub" id="shDate"></div></div>
-        <div class="chips"><button class="primary" data-go="ask">Ask Glint</button></div></div>
+        <div class="chips"><button class="ghost" data-quick>Quick Ask <kbd>⌘</kbd><kbd>⇧</kbd><kbd>K</kbd></button><button class="primary" data-go="ask">${ICON.ask}Ask Glint</button></div></div>
       <div id="shSetup"></div>
       <div class="sh-grid">
         <div class="card sh-now" id="shNow"></div>
-        <div class="card sh-pad sh-chart"><b>Tracked time, last 7 days</b><div id="shChart"></div></div>
+        <div class="card sh-pad sh-chart"><div class="card-title">Tracked time <span class="muted">Last 7 days</span></div><div id="shChart"></div></div>
       </div>
       <div class="tiles" id="shTiles"></div>
-      <div class="sh-grid">
-        <div class="card sh-pad"><b>Today's sessions</b><div class="sh-recent" id="shRecent" style="margin-top:6px"></div></div>
-        <div class="card sh-pad"><b>Shortcuts</b><div class="sh-links">
-          <button data-go="ask">Ask<small>Questions about anything you've seen</small></button>
-          <button data-quick>Quick Ask<small>⌘⇧K over any app</small></button>
-          <button data-go="memory">Search memory<small>Find a page, chat or doc</small></button>
-          <button data-go="skills">Skills<small>Saved /shortcuts for Ask</small></button>
-          <button data-go="today">Timeline<small>Today's apps and sessions</small></button>
-          <button data-go="settings">Settings<small>Capture, focus, privacy</small></button>
+      <div class="sh-grid rev">
+        <div class="card sh-pad"><div class="card-title">Today's sessions <button class="ghost" data-go="today" style="min-height:24px;padding:2px 8px;font-size:12px">See all</button></div><div class="sh-recent" id="shRecent" style="margin-top:6px"></div></div>
+        <div class="card sh-pad"><div class="card-title">Jump to</div><div class="sh-links">
+          <button data-go="ask"><span class="ic">${ICON.ask}</span><span>Ask<small>Questions about anything you've seen</small></span></button>
+          <button data-quick><span class="ic">${ICON.bolt}</span><span>Quick Ask<small>⌘⇧K over any app</small></span></button>
+          <button data-go="memory"><span class="ic">${ICON.search}</span><span>Search memory<small>Find a page, chat or doc</small></span></button>
+          <button data-go="skills"><span class="ic">${ICON.slash}</span><span>Skills<small>Saved /shortcuts for Ask</small></span></button>
+          <button data-go="today"><span class="ic">${ICON.clock}</span><span>Timeline<small>Today's apps and sessions</small></span></button>
+          <button data-go="settings"><span class="ic">${ICON.gear}</span><span>Settings<small>Capture, focus, privacy</small></span></button>
         </div></div>
       </div>`,
   });
@@ -132,11 +168,12 @@
     const [label, dot] = MODE[n.mode] || [n.mode, ""];
     const state = n.mode === "paused" && n.paused_until ? `Paused until ${H.clock(n.paused_until)}` : label;
     const paused = n.mode === "paused" || n.mode === "off";
+    const icon = n.app ? `<span class="aic" style="background:${H.colorOf(n.app)}">${esc(n.app[0].toUpperCase())}<img src="/icon/app?name=${encodeURIComponent(n.app)}" alt="" onerror="this.remove()"></span>` : "";
     byId("shNow").innerHTML = `
-      <span class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.06em">Now</span>
-      <div class="sh-app"><i class="dot ${dot}"></i><span class="ell">${esc(n.app || "Nothing in front yet")}</span></div>
-      <div class="state">${esc(state)}${n.title ? ` · <span class="ell">${esc(n.title.slice(0, 80))}</span>` : ""}</div>
-      ${n.session_id ? `<div>Session <span class="elapsed" data-start="${n.session_started_at}">${dur(n.elapsed_s)}</span>${n.session_title ? ` · ${esc(n.session_title)}` : ""}</div>` : '<div class="muted">No session running. One starts when Glint sees you working.</div>'}
+      <div class="sh-now-top"><span class="eyebrow">Now</span><span class="sh-pill"><i class="dot ${dot}"></i>${esc(state)}</span></div>
+      <div class="sh-app">${icon}<span class="ell">${esc(n.app || "Nothing in front yet")}</span></div>
+      ${n.title ? `<div class="state ell">${esc(n.title.slice(0, 80))}</div>` : ""}
+      ${n.session_id ? `<div class="sess-line">Session <span class="elapsed" data-start="${n.session_started_at}">${dur(n.elapsed_s)}</span>${n.session_title ? ` · ${esc(n.session_title)}` : ""}</div>` : '<div class="sess-line">No session running. One starts when Glint sees you working.</div>'}
       <div class="acts">
         ${n.mode === "needs_access" ? '<button class="primary" data-now="ax">Grant access</button>' : ""}
         <button data-now="${paused ? "resume" : "pause"}">${paused ? "Resume capture" : "Pause 30 min"}</button>
@@ -182,12 +219,12 @@
     byId("shTiles").innerHTML = [
       [H.mins(t.tracked_seconds), "tracked today"], [t.sessions, "work sessions"],
       [t.avg_focus ?? "–", "average focus"], [t.asks, "questions asked"],
-    ].map(([v, l]) => `<div class="card tile"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join("");
-    byId("shRecent").innerHTML = t.latest.length ? t.latest.map((s) => `<div data-go="today"><span class="ell">${esc(s.title || (s.active ? "Current session" : "Untitled session"))}${s.state_name ? ` <span class="chip accent">${esc(s.state_name)}</span>` : ""}</span><span class="muted">${H.clock(s.started_at)}${s.focus_score != null ? ` · ${s.focus_score}` : ""}</span></div>`).join("")
-      + (t.top_apps.length ? `<div style="cursor:default;color:var(--muted)">Top apps: ${t.top_apps.slice(0, 3).map(([a, s]) => `${esc(a)} ${H.mins(s)}`).join(" · ")}</div>` : "")
-      : '<div class="muted" style="cursor:default">Nothing yet today.</div>';
+    ].map(([v, l]) => `<div class="card tile"><b>${esc(v)}</b><span>${esc(l[0].toUpperCase() + l.slice(1))}</span></div>`).join("");
+    byId("shRecent").innerHTML = t.latest.length ? t.latest.map((s) => `<div data-go="today" role="button" tabindex="0"><span class="tm">${H.clock(s.started_at)}</span><span class="ttl"><span>${esc(s.title || (s.active ? "Current session" : "Untitled session"))}</span>${s.state_name ? `<span class="chip accent">${esc(s.state_name)}</span>` : ""}</span>${s.focus_score != null ? `<span class="sh-score" title="Focus score">${s.focus_score}</span>` : "<span></span>"}</div>`).join("")
+      + (t.top_apps.length ? `<div class="foot">Top apps: ${t.top_apps.slice(0, 3).map(([a, s]) => `${esc(a)} ${H.mins(s)}`).join(" · ")}</div>` : "")
+      : (H.emptyState ? H.emptyState({ art: "sessions", title: "Nothing yet today", body: "Sessions show up here as Glint sees you work." }) : '<div class="muted">Nothing yet today.</div>');
     byId("shSetup").innerHTML = d.onboarding.onboarding_done ? "" :
-      '<div class="banner info"><span>Finish setting up Glint: permissions, which apps to remember, and AI keys.</span><button data-setup>Resume setup</button></div>';
+      '<div class="banner info"><span>Finish setting up Glint: permissions, which apps to remember, and AI keys.</span><button class="primary" data-setup>Resume setup</button></div>';
   }
   async function refreshNow() { if (!isOn("home")) return; try { renderNow(await api("/api/shell/now")); } catch {} }
   setInterval(refreshNow, 5000);
@@ -204,10 +241,10 @@
       <div class="head"><div><h1>Skills</h1><div class="sub">Saved instructions. Type a skill's <code>/trigger</code> in Ask or Quick Ask to run it, or ask Glint to create one.</div></div>
         <div class="chips"><button id="skImport">Import .md</button><input type="file" id="skFile" accept=".md,.markdown,.txt" multiple hidden><button class="primary" id="skNew">New skill</button></div></div>
       <div class="sh-skills">
-        <div class="card sh-sklist"><input type="search" id="skQ" placeholder="Search skills…" autocomplete="off"><div id="skList"></div></div>
+        <div class="card sh-sklist"><span class="search" style="margin-bottom:6px"><input type="search" id="skQ" placeholder="Search skills…" autocomplete="off" aria-label="Search skills"></span><div id="skList"></div></div>
         <div class="card sh-sked" id="skEd"></div>
       </div>
-      <div class="head" style="margin-top:30px"><div><h1 style="font-size:20px">Automation ideas</h1><div class="sub">Glint reviews your recent work sessions for things you keep doing by hand.</div></div>
+      <div class="head" style="margin-top:36px"><div><h1 style="font-size:20px">Automation ideas</h1><div class="sub">Glint reviews your recent work sessions for things you keep doing by hand.</div></div>
         <div class="chips"><select id="autoDays"><option value="7">Last 7 days</option><option value="14" selected>Last 14 days</option><option value="30">Last 30 days</option></select><button class="primary" id="autoScan">Scan my work</button></div></div>
       <div id="autoIdeas"></div>`,
   });
@@ -277,7 +314,7 @@
   function renderIdeas(r) {
     ideas = r.ideas || [];
     const when = r.at ? `<div class="muted" style="font-size:12.5px;margin-bottom:8px">Last scan ${H.when(r.at)} · ${r.sessions ?? 0} sessions over ${r.days} days</div>` : "";
-    if (!ideas.length) { byId("autoIdeas").innerHTML = when + `<div class="card empty">${esc(r.note || (r.at ? "No repeated work found. Try a longer range later." : "Run a scan to find work worth automating."))}</div>`; return; }
+    if (!ideas.length) { byId("autoIdeas").innerHTML = when + `<div class="card">${H.emptyState ? H.emptyState({ art: "sparkle", title: r.at ? "No repeated work found" : "Find work worth automating", body: esc(r.note || (r.at ? "Try a longer range later." : "Glint looks through recent sessions for things you keep doing by hand.")) }) : ""}</div>`; return; }
     byId("autoIdeas").innerHTML = when + ideas.map((it, i) => `<div class="card sh-idea">
       <div style="display:flex;justify-content:space-between;gap:10px"><b>${esc(it.title)}</b><span class="chips"><span class="chip accent">${esc(it.effort)} effort</span>${it.minutes_per_week ? `<span class="chip">~${it.minutes_per_week} min/week</span>` : ""}</span></div>
       <p>${esc(it.pattern)}</p><p class="muted">${esc(it.evidence)}</p><p><b>Try:</b> ${esc(it.suggestion)}</p>
@@ -481,9 +518,9 @@
   const granted = (v) => v === true || v === "granted" || v === "authorized";
 
   const STEPS = [
-    { id: "welcome", render: () => `<h2>Welcome to Glint</h2><p class="lead">A private memory for your Mac. Glint reads the text of the windows you work in, keeps it on this Mac, and groups it into work sessions you can search and ask about.</p>
-        <ul style="margin:0;padding-left:20px;line-height:1.9"><li><b>Ask</b> anything you've seen: "what was that pricing page?"</li><li><b>Quick Ask</b> over any app with <code>⌘⇧K</code></li>
-        <li><b>Dictate</b> anywhere by holding <code>Control</code> + <code>Option</code></li><li>Session titles, summaries and focus insights, written by the AI provider you choose</li></ul>
+    { id: "welcome", render: () => `<span class="mark hero" aria-hidden="true"><svg><use href="#glint-glyph"/></svg></span><h2>Welcome to Glint</h2><p class="lead">A private memory for your Mac. Glint reads the text of the windows you work in, keeps it on this Mac, and groups it into work sessions you can search and ask about.</p>
+        <ul class="feat"><li><b>Ask</b> anything you've seen: "what was that pricing page?"</li><li><b>Quick Ask</b> over any app with <kbd>⌘</kbd><kbd>⇧</kbd><kbd>K</kbd></li>
+        <li><b>Dictate</b> anywhere by holding <kbd>Control</kbd> + <kbd>Option</kbd></li><li>Session titles, summaries and focus insights, written by the AI provider you choose</li></ul>
         <p class="muted" style="margin-top:14px">Setup takes about two minutes. You can skip any step and come back from Settings.</p>` },
     { id: "persona", render: () => `<h2>What do you do?</h2><p class="lead">Glint uses this to phrase summaries and answers. Pick the closest.</p>
         <div class="sh-choices">${PERSONAS.map(([p, d]) => `<button data-persona="${esc(p)}" class="${W.persona === p ? "on" : ""}">${esc(p)}<small>${esc(d)}</small></button>`).join("")}</div>`,
@@ -538,7 +575,7 @@
         document.querySelectorAll("#wzProv button").forEach((b) => b.classList.toggle("on", b.dataset.prov === W.provider));
       } },
     { id: "done", render: () => `<h2>You're set</h2><p class="lead">Glint now runs in the menu bar. Closing this window is fine; capture keeps going until you pause it.</p>
-        <ul style="margin:0 0 16px;padding-left:20px;line-height:1.9"><li>Press <code>⌘⇧K</code> for Quick Ask over any app</li><li>Hold <code>Control</code> + <code>Option</code> to dictate</li>
+        <ul class="feat" style="margin-bottom:18px"><li>Press <kbd>⌘</kbd><kbd>⇧</kbd><kbd>K</kbd> for Quick Ask over any app</li><li>Hold <kbd>Control</kbd> + <kbd>Option</kbd> to dictate</li>
         <li>A small timer pill shows while a session runs; drag it to any screen edge</li><li>Pause anytime from the menu bar icon</li></ul>
         <label><input type="checkbox" id="wzLogin" checked> Open Glint when I log in</label>`, next: "Finish" },
   ];

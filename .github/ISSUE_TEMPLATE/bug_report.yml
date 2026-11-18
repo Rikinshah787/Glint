@@ -1,0 +1,57 @@
+name: Bug report
+description: Something in Glint doesn't work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! **Please don't paste captured text, private screenshots or API keys.**
+        If you can, reproduce it in demo mode (`scripts/demo.sh`) and share that instead.
+        Security issue? Report it privately: https://github.com/Rikinshah787/Glint/security/advisories/new
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Press …
+        3. See …
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Capture, Sessions / reports, Search, Ask / Quick Ask, Autocomplete, Dictate, Assist, Glance / visual answers, Knowledge graph, Connectors / MCP, Install / permissions, Demo mode / docs, Other]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Glint version
+      placeholder: "0.1.0 (DMG) or git commit"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and Mac model
+      placeholder: "macOS 26.1, MacBook Air M2"
+    validations:
+      required: true
+  - type: dropdown
+    id: model
+    attributes:
+      label: AI model in use (Settings → AI)
+      options: [Apple on-device, Claude, OpenAI, None / not set up, Not sure]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Engine output, if relevant (Glint never logs captured text). Remove anything private.
+      render: text
