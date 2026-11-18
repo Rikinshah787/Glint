@@ -103,6 +103,8 @@ def _disabled(app: str, bundle_id: str, s: dict) -> bool:
 def _provider(s: dict):
     """The user's provider (optionally with an autocomplete-specific model), cached for a minute
     because building one reads the Keychain."""
+    if s.get("fast_on_device", True) and not (s.get("autocomplete_model") or "").strip() and ai.apple_available():
+        return ai.AppleProvider()  # on-device: fast, free, private; no keychain read needed
     model = (s.get("autocomplete_model") or "").strip()
     key = (s["provider"], model, s["claude_model"], s["openai_model"])
     pc = _provider_cache
@@ -114,7 +116,9 @@ def _provider(s: dict):
     if model:
         models[s["provider"]] = model
     try:
-        p = ai.make_provider(s["provider"], E.api_keys(), models)
+        keys = E.api_keys()
+        name = "auto" if s["provider"] in ("claude", "openai") and not keys.get(s["provider"]) else s["provider"]
+        p = ai.make_provider(name, keys, models)
         # Short, single-shot calls: no retries, and give up long before the SDK default.
         if hasattr(p, "client") and hasattr(p.client, "with_options"):
             p.client = p.client.with_options(timeout=PROVIDER_TIMEOUT_S, max_retries=0)
@@ -341,8 +345,47 @@ def _release() -> None:
         _inflight = max(0, _inflight - 1)
 
 
+ON_DEVICE_INSTRUCTIONS = (
+    "You are inline autocomplete. Start by repeating the last few words of the user's text exactly, "
+    "then continue it naturally with at most 10 more words that finish their thought. Match their tone. "
+    "Output only that, on one line: no quotes, no explanation. Never invent names, numbers or dates.")
+
+
+def align_continuation(before: str, out: str) -> str:
+    """The model echoes the end of the text, then continues; strip the echo so only new text remains,
+    keeping the model's own spacing at the boundary."""
+    out = out.strip().strip('"').splitlines()[0] if out.strip() else ""
+    norm_b = re.sub(r"\s+", " ", before).lower()
+    low = out.lower()
+    for k in range(min(len(out), 80), 2, -1):  # longest echoed prefix that ends the user's text
+        if norm_b.endswith(re.sub(r"\s+", " ", low[:k])):
+            return out[k:]
+    # No echo found: treat it as a continuation of a finished word.
+    if before and before[-1].isalnum() and out[:1].isalnum():
+        return " " + out
+    return out
+
+
+def _call_on_device(b: dict) -> list[str]:
+    app, title = b.get("app") or "", (b.get("title") or "")[:80]
+    before = b.get("text_before") or ""
+    samples = samples_for(_app_key(app, b.get("url_host")))[:2]
+    prompt = (f"App: {app}" + (f" — {title}" if title else "") + "\n"
+              + ("".join(f"Their style: {_clip_tail(x, 140)}\n" for x in samples))
+              + f"User's text so far:\n{_clip_tail(before, 500)}")
+    text = ai._AppleServer.request({"instructions": ON_DEVICE_INSTRUCTIONS, "prompt": prompt,
+                                    "max_tokens": 28, "temperature": 0.2}, timeout=PROVIDER_TIMEOUT_S)
+    cont = align_continuation(before, text)
+    return [cont] if cont.strip() else []
+
+
 def _call(provider, prompt: str, n: int, b: dict, key: tuple) -> tuple[list[str], str | None]:
     try:
+        if isinstance(provider, ai.AppleProvider):  # lean prompt + plain text: well under a second
+            sugg, reason = clean_suggestions(_call_on_device(b), b.get("text_before") or "",
+                                             b.get("text_after") or "", 1)
+            _cache_put(key, sugg)
+            return sugg, reason
         out = provider.complete_json(SYSTEM.format(n=n), prompt, OUTPUT_SCHEMA)
         sugg, reason = clean_suggestions((out or {}).get("suggestions"), b.get("text_before") or "",
                                          b.get("text_after") or "", n)
@@ -353,6 +396,14 @@ def _call(provider, prompt: str, n: int, b: dict, key: tuple) -> tuple[list[str]
 
 
 def suggest(b: dict) -> dict:
+    t0 = time.time()
+    r = _suggest(b)
+    E.log(f"autocomplete app={str(b.get('app'))[:30]!r} ms={int((time.time() - t0) * 1000)} "
+          f"n={len(r.get('suggestions') or [])} quiet={r.get('quiet_reason')}")
+    return r
+
+
+def _suggest(b: dict) -> dict:
     t0 = time.time()
     s = _settings()
     before = str(b.get("text_before") or "")[-6000:]

@@ -9,6 +9,7 @@ IDENTITY="${GLINT_SIGN_IDENTITY:-Glint Local Signing}"
 
 mkdir -p "$ROOT/bin" "$APP/Contents/MacOS" "$APP/Contents/Resources"
 swiftc -O "$ROOT/mac/capture/GlintCapture.swift" -o "$ROOT/bin/glint-capture"
+swiftc -O "$ROOT/mac/llm/GlintLLM.swift" -o "$ROOT/bin/glint-llm" -framework FoundationModels
 swiftc -O "$ROOT"/mac/*.swift -o "$APP/Contents/MacOS/Glint" \
   -framework AppKit -framework WebKit -framework Carbon -framework AVFoundation -framework Speech \
   -framework ServiceManagement -framework UserNotifications
@@ -35,10 +36,12 @@ PLIST
 
 if security find-certificate -c "$IDENTITY" >/dev/null 2>&1 \
    && codesign --force -s "$IDENTITY" "$ROOT/bin/glint-capture" 2>/dev/null \
+  && codesign --force -s "$IDENTITY" "$ROOT/bin/glint-llm" 2>/dev/null \
    && codesign --force --deep -s "$IDENTITY" "$APP" 2>/dev/null; then
   echo "signed with '$IDENTITY'"
 else
   codesign --force -s - "$ROOT/bin/glint-capture" >/dev/null
+  codesign --force -s - "$ROOT/bin/glint-llm" >/dev/null
   codesign --force --deep -s - "$APP" >/dev/null
   echo "ad-hoc signed. For permissions that survive rebuilds: run scripts/create-signing-identity.sh,"
   echo "then run this build once from Terminal and click 'Always Allow' when macOS asks about the key."

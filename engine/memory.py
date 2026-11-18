@@ -10,6 +10,11 @@ How memory works:
           -> SQLite FTS5 (bm25) + all-MiniLM-L6-v2 embeddings (384-d, cosine)
   search  -> hybrid: keyword and semantic ranked lists fused with Reciprocal
              Rank Fusion; falls back to keyword-only if embedding fails.
+             Extra lists/adjustments (see RETRIEVAL): session-level documents
+             (title/summary/project/insights) as their own keyword + semantic
+             lists, alias expansion of the keyword query (memory_synonyms), a
+             soft boost for explicit time phrases ("last week"), a light recency
+             tie-break, and near-duplicate suppression of repeated captures.
 """
 from __future__ import annotations
 
@@ -49,6 +54,22 @@ MIN_PASSAGE_CHARS = 20
 RRF_K = 60
 MAX_LIMIT = 48
 MIN_COSINE = 0.20     # semantic hits below this are noise for MiniLM (glint-memory only)
+SESSION_MIN_COSINE = 0.30   # session docs are short summaries; weak matches are mostly noise
+
+# Retrieval features (all on by default; the retrieval eval turns them off for the baseline).
+RETRIEVAL = {
+    "sessions": True,     # session-level docs (summary text) fused into RRF as their own lists
+    "expand": True,       # expand keyword query with aliases of entities named in the query
+    "time_hints": True,   # "yesterday", "last week"… → soft boost for items inside that window
+    "recency": True,      # light recency tie-break
+    "dedup": True,        # suppress near-identical passages from repeated captures of one window
+}
+RECENCY_WEIGHT = 0.05        # at most +5% of an item's fused score…
+RECENCY_HALF_LIFE_D = 7.0    # …halving every week of age
+TIME_HINT_BOOST = 0.30       # +30% for items inside an explicitly named time window
+MAX_EXPANSIONS = 12
+DUP_OVERLAP_SAME_TITLE = 0.80   # word-set overlap (|A∩B| / min) at which two captures of one window match
+DUP_JACCARD_ANY_TITLE = 0.90    # …or (Jaccard) of the same app under a different window title
 
 
 def candidate_depth(limit: int) -> int:
@@ -124,6 +145,35 @@ END;
 CREATE TRIGGER IF NOT EXISTS memory_chunks_passages_ad AFTER DELETE ON memory_chunks BEGIN
     DELETE FROM memory_passages WHERE chunk_id = old.id;
 END;
+
+-- Session-level documents (title + summary + project + insights), written by the engine/graph
+-- feature once a work session has been summarised; searched as their own ranked lists.
+CREATE TABLE IF NOT EXISTS memory_session_docs (
+    session_id  TEXT PRIMARY KEY,
+    started_at  INTEGER NOT NULL,
+    title       TEXT NOT NULL DEFAULT '',
+    text        TEXT NOT NULL,
+    apps        TEXT NOT NULL DEFAULT '',
+    embedding   BLOB,                           -- float32[384], L2-normalised
+    updated_at  INTEGER NOT NULL DEFAULT 0
+);
+CREATE VIRTUAL TABLE IF NOT EXISTS memory_session_docs_fts USING fts5(
+    title, text, content='memory_session_docs', content_rowid='rowid', tokenize='porter unicode61');
+CREATE TRIGGER IF NOT EXISTS memory_session_docs_ai AFTER INSERT ON memory_session_docs BEGIN
+    INSERT INTO memory_session_docs_fts(rowid, title, text) VALUES (new.rowid, new.title, new.text);
+END;
+CREATE TRIGGER IF NOT EXISTS memory_session_docs_ad AFTER DELETE ON memory_session_docs BEGIN
+    INSERT INTO memory_session_docs_fts(memory_session_docs_fts, rowid, title, text)
+    VALUES ('delete', old.rowid, old.title, old.text);
+END;
+
+-- Query expansion groups (e.g. an entity's name + aliases from the knowledge graph).
+CREATE TABLE IF NOT EXISTS memory_synonyms (
+    grp  TEXT NOT NULL,
+    term TEXT NOT NULL,                         -- normalised: lower-case words joined by one space
+    PRIMARY KEY (grp, term)
+);
+CREATE INDEX IF NOT EXISTS idx_synonyms_term ON memory_synonyms(term);
 """
 
 
@@ -248,13 +298,13 @@ def add_chunk(db, text, app_id, title="", url_host=None, source="manual", captur
 
 
 def embed_pending(db, batch: int = 256, verbose: bool = True) -> int:
+    done = embed_session_docs(db)
     rows = db.execute(
         "SELECT p.id, c.window_title, p.text FROM memory_passages p"
         " JOIN memory_chunks c ON c.id = p.chunk_id WHERE p.embedding IS NULL"
     ).fetchall()
     if not rows:
-        return 0
-    done = 0
+        return done
     try:
         for i in range(0, len(rows), batch):
             part = rows[i:i + batch]
@@ -273,6 +323,89 @@ def embed_pending(db, batch: int = 256, verbose: bool = True) -> int:
     return done
 
 
+# ------------------------------------------------------------------ session docs
+# High-level text per work session (title, project, summary, insights, entity names). The engine's
+# graph feature writes these after a session is summarised; search() fuses them as their own lists.
+
+def norm_term(text: str) -> str:
+    """Normalised form used for synonym lookups: lower-case words joined by one space."""
+    return " ".join(re.findall(r"\w+", (text or "").lower()))
+
+
+def compose_session_doc(title: str, project: str = "", summary: str = "", insights=(),
+                        mentions=()) -> str:
+    """Session-level text: title, project, summary, insight headlines and the named things it
+    mentions with their aliases — e.g. mentions=[("Project Ledger", ["billing migration"])]."""
+    names = []
+    for name, aliases in mentions or []:
+        alias = [a for a in aliases or [] if a and a.lower() != name.lower()][:4]
+        names.append(f"{name} ({', '.join(alias)})" if alias else name)
+    return "\n".join(filter(None, [
+        (title or "").strip(), f"Project: {project.strip()}" if (project or "").strip() else "",
+        (summary or "").strip(),
+        ("Insights: " + "; ".join(i for i in insights if i)) if any(insights or []) else "",
+        ("Mentions: " + ", ".join(names[:16])) if names else ""]))
+
+
+def upsert_session_doc(db, session_id: str, text: str, started_at: int, title: str = "",
+                       apps: str = "", embed: bool = True) -> None:
+    """Index (or re-index) one session's high-level text. Empty text removes it. Caller commits."""
+    text = (text or "").strip()
+    db.execute("DELETE FROM memory_session_docs WHERE session_id=?", (session_id,))
+    if not text:
+        return
+    vec = None
+    if embed:
+        try:
+            vec = Embedder.embed([text])[0].tobytes()
+        except Exception as e:  # embed_pending() retries later
+            warn(f"[memory] session doc embedding deferred ({e.__class__.__name__})")
+    db.execute("INSERT INTO memory_session_docs (session_id, started_at, title, text, apps, embedding,"
+               " updated_at) VALUES (?,?,?,?,?,?,?)",
+               (session_id, int(started_at or 0), title or "", text, apps or "", vec, now_ms()))
+
+
+def delete_session_doc(db, session_id: str) -> None:
+    db.execute("DELETE FROM memory_session_docs WHERE session_id=?", (session_id,))
+
+
+def session_doc_ids(db) -> set[str]:
+    return {r[0] for r in db.execute("SELECT session_id FROM memory_session_docs")}
+
+
+def embed_session_docs(db, batch: int = 128) -> int:
+    rows = db.execute("SELECT rowid, text FROM memory_session_docs WHERE embedding IS NULL").fetchall()
+    done = 0
+    try:
+        for i in range(0, len(rows), batch):
+            part = rows[i:i + batch]
+            vecs = Embedder.embed([t for _, t in part])
+            db.executemany("UPDATE memory_session_docs SET embedding=? WHERE rowid=?",
+                           [(v.tobytes(), r[0]) for v, r in zip(vecs, part)])
+            db.commit()
+            done += len(part)
+    except Exception as e:
+        warn(f"[memory] session doc embedding failed ({e}); keyword search still available")
+    return done
+
+
+def set_synonyms(db, group: str, terms) -> None:
+    """Replace one expansion group (e.g. an entity's name + aliases). Caller commits."""
+    db.execute("DELETE FROM memory_synonyms WHERE grp=?", (group,))
+    clean = {norm_term(t) for t in terms or []}
+    clean = sorted(t for t in clean if len(t) >= 2 and t not in STOPWORDS)
+    if len(clean) >= 2:  # a lone term expands to nothing
+        db.executemany("INSERT OR IGNORE INTO memory_synonyms (grp, term) VALUES (?,?)",
+                       [(group, t) for t in clean])
+
+
+def clear_synonyms(db, group: str | None = None) -> None:
+    if group is None:
+        db.execute("DELETE FROM memory_synonyms")
+    else:
+        db.execute("DELETE FROM memory_synonyms WHERE grp=?", (group,))
+
+
 # ------------------------------------------------------------------------- search
 
 def build_fts_query(query: str) -> tuple[str, list[str]]:
@@ -280,6 +413,65 @@ def build_fts_query(query: str) -> tuple[str, list[str]]:
     kept = [t for t in toks if t not in STOPWORDS] or toks
     terms = list(dict.fromkeys(kept))
     return " OR ".join(f'"{t}"*' for t in terms), terms
+
+
+def expansion_terms(db, query: str) -> list[str]:
+    """Aliases of every synonym group (entity) whose name or alias appears in the query."""
+    words = re.findall(r"\w+", query.lower())
+    grams = {" ".join(words[i:i + n]) for n in range(1, 5) for i in range(len(words) - n + 1)}
+    grams = [g for g in grams if g not in STOPWORDS and len(g) >= 2]
+    if not grams:
+        return []
+    groups = [r[0] for r in db.execute(
+        f"SELECT DISTINCT grp FROM memory_synonyms WHERE term IN ({','.join('?' * len(grams))})", grams)]
+    if not groups:
+        return []
+    have, out = set(words), []
+    for (term,) in db.execute(
+            f"SELECT term FROM memory_synonyms WHERE grp IN ({','.join('?' * len(groups))})", groups):
+        if term not in grams and not all(w in have for w in term.split()):
+            out.append(term)
+    return list(dict.fromkeys(out))[:MAX_EXPANSIONS]
+
+
+_DAY_MS = 86_400_000
+_WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def time_hint(query: str, now: int | None = None):
+    """An explicit time phrase in the query -> (start_ms, end_ms | None, query without it), else None."""
+    from datetime import datetime, timedelta
+    day0 = datetime.fromtimestamp((now or now_ms()) / 1000).replace(hour=0, minute=0, second=0, microsecond=0)
+    ms = lambda d: int(d.timestamp() * 1000)  # noqa: E731
+    week0 = day0 - timedelta(days=day0.weekday())
+    month0 = day0.replace(day=1)
+    prev_month0 = (month0 - timedelta(days=1)).replace(day=1)
+
+    def weekday(m):
+        back = (day0.weekday() - _WEEKDAYS.index(m.group(1).lower())) % 7 or 7
+        start = day0 - timedelta(days=back)
+        return start, start + timedelta(days=1)
+
+    rules = [
+        (r"\b(earlier )?today('s)?\b|\bthis (morning|afternoon|evening)\b", lambda m: (day0, None)),
+        (r"\byesterday('s)?\b", lambda m: (day0 - timedelta(days=1), day0)),
+        (r"\bthis week('s)?\b", lambda m: (week0, None)),
+        (r"\b(last|previous) week('s)?\b", lambda m: (week0 - timedelta(days=7), week0)),
+        (r"\bthis month('s)?\b", lambda m: (month0, None)),
+        (r"\b(last|previous) month('s)?\b", lambda m: (prev_month0, month0)),
+        (r"\b(past|last) (\d{1,3}) days\b", lambda m: (day0 - timedelta(days=int(m.group(2))), None)),
+        (r"\b(\d{1,3}) days ago\b",
+         lambda m: (day0 - timedelta(days=int(m.group(1))), day0 - timedelta(days=int(m.group(1)) - 1))),
+        (r"\blast (" + "|".join(_WEEKDAYS) + r")\b", weekday),
+    ]
+    for pat, fn in rules:
+        m = re.search(pat, query, re.I)
+        if not m:
+            continue
+        lo, hi = fn(m)
+        rest = re.sub(r"\s+", " ", query[:m.start()] + " " + query[m.end():]).strip()
+        return ms(lo), (ms(hi) if hi else None), rest
+    return None
 
 
 def filter_sql(since_hours, app) -> tuple[str, list]:
@@ -290,6 +482,17 @@ def filter_sql(since_hours, app) -> tuple[str, list]:
     if app:
         clauses.append("(c.app_id LIKE ? OR c.url_host LIKE ?)")
         params += [f"%{app}%", f"%{app}%"]
+    return ("AND " + " AND ".join(clauses)) if clauses else "", params
+
+
+def session_filter_sql(since_hours, app) -> tuple[str, list]:
+    clauses, params = [], []
+    if since_hours:
+        clauses.append("d.started_at >= ?")
+        params.append(now_ms() - int(float(since_hours) * 3_600_000))
+    if app:
+        clauses.append("d.apps LIKE ?")
+        params.append(f"%{app}%")
     return ("AND " + " AND ".join(clauses)) if clauses else "", params
 
 
@@ -316,7 +519,7 @@ def keyword_titles(db, fts, filt, params, depth):
     return [(cid, None, -score) for cid, score in rows]
 
 
-def semantic_passages(db, query, filt, params, depth):
+def semantic_passages(db, query, filt, params, depth, qv_fn=None):
     import numpy as np
     rows = db.execute(
         "SELECT p.chunk_id, p.id, p.embedding FROM memory_passages p"
@@ -325,11 +528,38 @@ def semantic_passages(db, query, filt, params, depth):
     ).fetchall()
     if not rows:
         return []
-    qv = Embedder.embed([query])[0]
+    qv = qv_fn() if qv_fn else Embedder.embed([query])[0]
     mat = np.frombuffer(b"".join(r[2] for r in rows), dtype=np.float32).reshape(len(rows), -1)
     sims = mat @ qv
     order = np.argsort(-sims)[:depth]
     return [(rows[i][0], rows[i][1], float(sims[i])) for i in order if sims[i] >= MIN_COSINE]
+
+
+SESSION_PREFIX = "s:"   # session-level candidates share the RRF id space with chunk ids
+
+
+def keyword_sessions(db, fts, filt, params, depth):
+    rows = db.execute(
+        "SELECT d.session_id, bm25(memory_session_docs_fts, 2.0, 1.0) FROM memory_session_docs_fts"
+        " JOIN memory_session_docs d ON d.rowid = memory_session_docs_fts.rowid"
+        f" WHERE memory_session_docs_fts MATCH ? {filt}"
+        " ORDER BY bm25(memory_session_docs_fts, 2.0, 1.0) LIMIT ?",
+        [fts, *params, depth],
+    ).fetchall()
+    return [(SESSION_PREFIX + sid, None, -score) for sid, score in rows]
+
+
+def semantic_sessions(db, qv_fn, filt, params, depth):
+    import numpy as np
+    rows = db.execute(
+        f"SELECT d.session_id, d.embedding FROM memory_session_docs d WHERE d.embedding IS NOT NULL {filt}",
+        params).fetchall()
+    if not rows:
+        return []
+    mat = np.frombuffer(b"".join(r[1] for r in rows), dtype=np.float32).reshape(len(rows), -1)
+    sims = mat @ qv_fn()
+    order = np.argsort(-sims)[:depth]
+    return [(SESSION_PREFIX + rows[i][0], None, float(sims[i])) for i in order if sims[i] >= SESSION_MIN_COSINE]
 
 
 def rrf(lists: dict):
@@ -359,27 +589,142 @@ def snippet(text: str, terms: list[str], width: int = 320) -> str:
     return ("…" if start else "") + out + ("…" if start + width < len(flat) else "")
 
 
+def _has_column(db, table: str, col: str) -> bool:
+    return any(r[1] == col for r in db.execute(f"PRAGMA table_info({table})"))
+
+
+def _has_table(db, name: str) -> bool:
+    return db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone() is not None
+
+
+def _rows_in(db, sql: str, ids: list, chunk: int = 500):
+    out = []
+    for i in range(0, len(ids), chunk):
+        part = ids[i:i + chunk]
+        out += db.execute(sql.format(marks=",".join("?" * len(part))), part).fetchall()
+    return out
+
+
+def _wordset(text: str) -> frozenset:
+    return frozenset(re.findall(r"\w+", (text or "").lower()))
+
+
+def _near_duplicate(kept: list, app_id: str, title: str, words: frozenset) -> bool:
+    if not words:
+        return False
+    for k_app, k_title, k_words in kept:
+        if k_app != app_id or not k_words:
+            continue
+        shared = len(words & k_words)
+        if k_title == title and shared / min(len(words), len(k_words)) >= DUP_OVERLAP_SAME_TITLE:
+            return True
+        if shared / len(words | k_words) >= DUP_JACCARD_ANY_TITLE:
+            return True
+    return False
+
+
 def search(db, query, since_hours=None, app=None, limit=10, mode="hybrid", sort="relevance"):
+    """Hybrid search. Returns (results, terms, notes); each result is a capture passage or — with
+    kind == "session" — a summarised work session (app_id "session", passage = its summary text)."""
     limit = min(max(int(limit), 1), MAX_LIMIT)
     depth = candidate_depth(limit)
-    fts, terms = build_fts_query(query)
+    hint = time_hint(query) if RETRIEVAL["time_hints"] else None
+    text_q = hint[2] if hint and re.search(r"\w", hint[2]) else query
+    fts, terms = build_fts_query(text_q)
+    if RETRIEVAL["expand"] and fts:
+        extra = expansion_terms(db, text_q)
+        if extra:
+            fts += " OR " + " OR ".join(f'"{t}"' if " " in t else f'"{t}"*' for t in extra)
+            terms += [w for w in dict.fromkeys(w for t in extra for w in t.split()) if w not in terms]
     filt, params = filter_sql(since_hours, app)
+    use_sessions = RETRIEVAL["sessions"]
+    sfilt, sparams = session_filter_sql(since_hours, app)
     lists, notes = {}, []
+
+    qv_cache: list = []
+
+    def qv_fn():
+        if not qv_cache:
+            qv_cache.append(Embedder.embed([text_q])[0])
+        return qv_cache[0]
 
     if mode in ("hybrid", "keyword") and fts:
         lists["keyword"] = keyword_passages(db, fts, filt, params, depth)
         lists["title"] = keyword_titles(db, fts, filt, params, depth)
+        if use_sessions:
+            lists["session"] = keyword_sessions(db, fts, sfilt, sparams, depth)
     if mode in ("hybrid", "semantic"):
         try:
-            lists["semantic"] = semantic_passages(db, query, filt, params, depth)
+            lists["semantic"] = semantic_passages(db, text_q, filt, params, depth, qv_fn)
+            if use_sessions:
+                lists["session_semantic"] = semantic_sessions(db, qv_fn, sfilt, sparams, depth)
         except Exception as e:
             if mode == "semantic":
                 raise
             notes.append(f"[memory] DEGRADED: vector search failed ({e}); results are keyword-only")
 
     ranked, scores, best, why = rrf(lists)
-    results, seen_keys = [], set()
+    session_ids = [c[len(SESSION_PREFIX):] for c in ranked if c.startswith(SESSION_PREFIX)]
+    chunk_ids = [c for c in ranked if not c.startswith(SESSION_PREFIX)]
+    has_sid = _has_column(db, "memory_chunks", "session_id")
+    meta = {r[0]: (r[1], r[2]) for r in _rows_in(
+        db, "SELECT id, captured_at, " + ("session_id" if has_sid else "NULL") +
+        " FROM memory_chunks WHERE id IN ({marks})", chunk_ids)}
+    smeta: dict = {}
+    if session_ids:
+        smeta = {r[0]: r[1] for r in _rows_in(
+            db, "SELECT session_id, started_at FROM memory_session_docs WHERE session_id IN ({marks})",
+            session_ids)}
+        if _has_table(db, "sessions"):  # drop docs whose session was deleted
+            alive = {r[0] for r in _rows_in(db, "SELECT id FROM sessions WHERE id IN ({marks})", session_ids)}
+            for sid in session_ids:
+                if sid not in alive:
+                    scores.pop(SESSION_PREFIX + sid, None)
+                    smeta.pop(sid, None)
+                    delete_session_doc(db, sid)
+
+    adjusted = False
+    if hint or RETRIEVAL["recency"]:
+        now = now_ms()
+        for cid in list(scores):
+            ts = smeta.get(cid[len(SESSION_PREFIX):]) if cid.startswith(SESSION_PREFIX) \
+                else meta.get(cid, (None,))[0]
+            if ts is None:
+                continue
+            mult = 1.0
+            if hint and ts >= hint[0] and (hint[1] is None or ts < hint[1]):
+                mult += TIME_HINT_BOOST
+            if RETRIEVAL["recency"]:
+                mult += RECENCY_WEIGHT * 0.5 ** (max(0, now - ts) / _DAY_MS / RECENCY_HALF_LIFE_D)
+            scores[cid] *= mult
+        adjusted = True
+    if adjusted or len(ranked) != len(scores):
+        ranked = sorted(scores, key=lambda c: -scores[c])
+
+    dedup = RETRIEVAL["dedup"]
+    max_sessions = max(2, limit // 4)
+    results, seen_keys, kept_words, n_sessions = [], set(), [], 0
     for cid in ranked:
+        if cid.startswith(SESSION_PREFIX):
+            sid = cid[len(SESSION_PREFIX):]
+            if n_sessions >= max_sessions:
+                continue
+            row = db.execute("SELECT title, text, started_at FROM memory_session_docs WHERE session_id=?",
+                             (sid,)).fetchone()
+            if not row:
+                continue
+            rep = db.execute("SELECT id FROM memory_chunks WHERE session_id=? ORDER BY char_count DESC LIMIT 1",
+                             (sid,)).fetchone() if has_sid else None
+            n_sessions += 1
+            results.append({
+                "chunk_id": rep[0] if rep else None, "app_id": "session", "window_title": row[0] or "Session",
+                "url_host": None, "captured_at": row[2], "source": "session", "score": round(scores[cid], 5),
+                "signals": {k: {"rank": r, "raw": round(v, 4)} for k, (r, v) in why[cid].items()},
+                "passage": row[1], "next_passage": None, "session_id": sid, "kind": "session",
+            })
+            if len(results) >= limit:
+                break
+            continue
         c = db.execute(
             "SELECT app_id, window_title, url_host, captured_at, source, text"
             " FROM memory_chunks WHERE id=?", (cid,)).fetchone()
@@ -405,11 +750,17 @@ def search(db, query, since_hours=None, app=None, limit=10, mode="hybrid", sort=
                 nxt = db.execute("SELECT text FROM memory_passages WHERE hash=?",
                                  (next_hash,)).fetchone()
                 following = nxt[0] if nxt else None
+        if dedup:  # …and so do near-identical passages from consecutive captures
+            words = _wordset(passage)
+            if _near_duplicate(kept_words, c[0], c[1], words):
+                continue
+            kept_words.append((c[0], c[1], words))
         results.append({
             "chunk_id": cid, "app_id": c[0], "window_title": c[1], "url_host": c[2],
             "captured_at": c[3], "source": c[4], "score": round(scores[cid], 5),
             "signals": {k: {"rank": r, "raw": round(v, 4)} for k, (r, v) in why[cid].items()},
             "passage": passage, "next_passage": following,
+            "session_id": meta.get(cid, (None, None))[1], "kind": "capture",
         })
         if len(results) >= limit:
             break
@@ -560,6 +911,7 @@ def to_hit(r: dict) -> dict:
         "textPreview": re.sub(r"\s+", " ", r["passage"]).strip()[:900],
         "charCount": r.get("char_count", len(r["passage"])), "score": r["score"],
         "titleOnly": set(r["signals"]) == {"title"}, "signals": r["signals"],
+        "sessionId": r.get("session_id"), "kind": r.get("kind", "capture"),
     }
 
 
@@ -700,6 +1052,8 @@ def cmd_forget(db, a):
         params.append(now_ms() - a.older_than_days * 86_400_000)
     sql = "DELETE FROM memory_chunks" + (" WHERE " + " AND ".join(where) if where else "")
     n = db.execute(sql, params).rowcount
+    if a.all:
+        db.execute("DELETE FROM memory_session_docs")
     db.commit()
     db.execute("VACUUM")
     print(f"forgot {n} chunk(s)")

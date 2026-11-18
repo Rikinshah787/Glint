@@ -414,6 +414,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var mainWindow: NSWindow?
     var mainWeb: WKWebView?
     var quickPanel: QuickAskPanel?
+    var appBeforeQuickAsk: NSRunningApplication?
     var quickWeb: WKWebView?
     var statusItem: NSStatusItem?
     var hotKey: HotKey?
@@ -533,6 +534,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func toggleQuickAsk() {
         guard let p = quickPanel else { return }
         if p.isVisible { hideQuickAsk(); return }
+        let front = NSWorkspace.shared.frontmostApplication
+        appBeforeQuickAsk = front?.bundleIdentifier == Bundle.main.bundleIdentifier ? nil : front
         if let screen = NSScreen.main {
             let f = screen.visibleFrame
             p.setFrameOrigin(NSPoint(x: f.midX - p.frame.width / 2, y: f.maxY - p.frame.height - f.height * 0.12))
@@ -542,7 +545,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         quickWeb?.evaluateJavaScript("window.glintQuickOpened && window.glintQuickOpened()")
     }
 
-    func hideQuickAsk() { quickPanel?.orderOut(nil) }
+    func hideQuickAsk() {
+        guard let p = quickPanel, p.isVisible else { return }
+        p.orderOut(nil)
+        // Hand focus back to where the user was typing (macOS 14+ needs the active app to yield first).
+        if let prev = appBeforeQuickAsk {
+            if #available(macOS 14.0, *) { NSApp.yieldActivation(to: prev) }
+            prev.activate()
+        }
+        appBeforeQuickAsk = nil
+    }
 
     // Menus
     func buildMenu() {

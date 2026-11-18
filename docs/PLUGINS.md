@@ -23,6 +23,9 @@ def register():
     E.CONTEXT_HOOKS.append(lambda: "[My context]\n...")        # extra Ask context
     E.STARTUP_HOOKS.append(lambda: ...)                         # after engine start
     E.SESSION_END_HOOKS.append(lambda session_id: ...)         # after a work session ends
+    E.SESSION_SCHEMA_EXTRA["entities"] = {...json schema...}   # extra field in the session summary call
+    E.SESSION_SUMMARY_HOOKS.append(lambda sid, summary: ...)   # after a summary is saved or revised
+    E.SESSION_DELETE_HOOKS.append(lambda sid: ...)             # after a session is deleted
 ```
 
 Useful engine helpers: `E.db()` + `E.DB_LOCK` (SQLite, create your own tables with
@@ -41,6 +44,8 @@ Runs after the main script; use `window.HS`:
 ```js
 HS.registerView({ id: "home", label: "Home", icon: "<svg …>", html: "<div>…</div>", onShow() {} });
 HS.registerSettings({ id: "myfeature", title: "My feature", description: "…", html: "…", onLoad(settings) {} });
+HS.registerMemoryTab({ id: "graph", label: "Graph", html: "…", onShow() {} });  // extra tab on the Memory screen
+HS.openSession(sessionId);                                   // jump to a session in Memory
 HS.toolLabels.my_tool = (input) => `Did ${input.thing}`;     // chip label in Ask
 HS.renderers.visual = (payload, element) => { … };          // render E.emit_event("visual", …)
 HS.api(path, body?)  HS.toast(msg)  HS.confirmDialog(title, body)  HS.esc(s)  HS.md(text)  HS.settings

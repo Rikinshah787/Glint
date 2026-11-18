@@ -361,8 +361,9 @@ textarea.doc { width: 100%; min-height: 180px; font: 13px/1.5 ui-monospace, SFMo
       <div class="head"><div><h1>Settings</h1><div class="sub">Everything is stored on this Mac. API keys live in your Keychain.</div></div></div>
 
       <div class="card sect">
-        <h2>AI</h2><p class="muted">Used for Ask, Quick Ask and session summaries. Only the text needed for a request is sent to the provider you pick.</p>
-        <div class="field"><label>Provider</label><div class="ctl"><div class="seg-ctl" id="provSeg"><button data-p="claude">Claude</button><button data-p="openai">OpenAI</button></div></div></div>
+        <h2>AI</h2><p class="muted"><b>Auto</b> uses Claude or OpenAI when you add a key, otherwise Apple's free on-device model (needs Apple Intelligence turned on). On-device requests never leave your Mac; cloud requests send only the text a request needs.</p>
+        <div class="field"><label>Model</label><div class="ctl"><div class="seg-ctl" id="provSeg"><button data-p="auto">Auto</button><button data-p="apple">On-device</button><button data-p="claude">Claude</button><button data-p="openai">OpenAI</button></div><span class="muted" id="aiNow"></span></div></div>
+        <div class="field"><label>Quick tasks</label><div class="ctl"><label><input type="checkbox" id="fastOnDevice"> Run autocomplete and dictation cleanup on Apple's on-device model (fast, free, private)</label></div></div>
         <div class="field"><label>Claude model</label><div class="ctl"><input type="text" id="claudeModel" list="claudeModels" style="width:260px"><datalist id="claudeModels"></datalist><button class="ghost" data-load="claude">Load list</button></div></div>
         <div class="field"><label>OpenAI model</label><div class="ctl"><input type="text" id="openaiModel" list="openaiModels" style="width:260px"><datalist id="openaiModels"></datalist><button class="ghost" data-load="openai">Load list</button></div></div>
         <div class="field"><label>Claude API key</label><div class="ctl"><input type="password" id="claudeKey" placeholder="sk-ant-…" style="width:300px"><button data-savekey="claude">Save</button><button class="ghost danger" data-clearkey="claude">Remove</button><span id="claudeKeyState" class="ok"></span></div></div>
@@ -541,7 +542,7 @@ async function loadToday() {
   const s = status || await api("/api/status").catch(() => null);
   const ban = [];
   if (s && s.capture.ax_trusted === false) ban.push(`<div class="banner"><span>Glint needs Accessibility permission to read window text.</span><button onclick="window.webkit?.messageHandlers?.glint?.postMessage({action:'requestAccessibility'})">Grant access</button></div>`);
-  if (s && !s.keys.claude && !s.keys.openai) ban.push(`<div class="banner info"><span>Add a Claude or OpenAI key to get session summaries and Ask.</span><button onclick="show('settings')">Open Settings</button></div>`);
+  if (s && !s.ai?.effective) ban.push(`<div class="banner"><span>No AI model is set up: turn on Apple Intelligence (System Settings) for the free on-device model, or add a Claude/OpenAI key.</span><button onclick="show('settings')">Open Settings</button></div>`);
   $("todayBanner").innerHTML = ban.join("");
   $("tTracked").textContent = mins(t.tracked_seconds);
   $("tSessions").textContent = t.sessions.length;
@@ -697,15 +698,17 @@ function siteIcon(host, lg = false) {
 const siteName = (h) => h.replace(/^www\./, "");
 const durMin = (s) => Math.max(1, Math.round((s.ended_at - s.started_at) / 60000));
 let memTab = "sessions";
+const MEM_TAB_HOOKS = {};
 const sstate = { list: [], active: null, seq: 0 };
 function loadMemory() { switchMemTab(memTab); }
 function switchMemTab(tab) {
   memTab = tab;
   document.querySelectorAll("#memTabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
-  ["sessions", "timeline", "captures"].forEach((t) => $(`tab-${t}`).hidden = t !== tab);
+  document.querySelectorAll("#v-memory .mtab").forEach((el) => el.hidden = el.id !== `tab-${tab}`);
   if (tab === "sessions") { loadFacets(); searchSessions(); }
   else if (tab === "timeline") loadTimeline();
-  else { loadMemStats(); memSearch(); }
+  else if (tab === "captures") { loadMemStats(); memSearch(); }
+  else if (MEM_TAB_HOOKS[tab]) MEM_TAB_HOOKS[tab]();
 }
 $("memTabs").onclick = (e) => { const t = e.target.dataset.tab; if (t) switchMemTab(t); };
 async function loadFacets() {
@@ -913,6 +916,11 @@ let settings = null;
 async function loadSettings() {
   const r = await api("/api/settings"); settings = r.settings;
   document.querySelectorAll("#provSeg button").forEach((b) => b.classList.toggle("on", b.dataset.p === settings.provider));
+  $("fastOnDevice").checked = settings.fast_on_device !== false;
+  api("/api/ai/status").then((a) => {
+    const names = { apple: "Apple on-device", claude: "Claude", openai: "OpenAI" };
+    $("aiNow").innerHTML = a.effective ? `Using <b>${esc(names[a.effective] || a.effective)}</b>${a.apple ? "" : " · on-device model unavailable"}` : `<span class="err">No model available: turn on Apple Intelligence or add a key</span>`;
+  }).catch(() => {});
   $("claudeModel").value = settings.claude_model; $("openaiModel").value = settings.openai_model;
   $("claudeKeyState").textContent = r.keys.claude ? "✓ saved" : ""; $("openaiKeyState").textContent = r.keys.openai ? "✓ saved" : "";
   $("capEnabled").checked = settings.capture_enabled; $("capInterval").value = settings.capture_interval_s; $("idleSec").value = settings.idle_seconds;
@@ -963,6 +971,7 @@ $("saveBio").onclick = async () => { await api("/api/bio", { bio: $("bio").value
 $("saveMem").onclick = async () => { await api("/api/memory", { memory: $("memDoc").value }); toast("Memory saved"); };
 $("siteIcons").onchange = async (e) => { await api("/api/settings", { site_icons: e.target.checked }); toast("Saved"); };
 $("openLogin").onchange = async (e) => { await api("/api/settings", { open_at_login: e.target.checked }); toast(e.target.checked ? "Glint will open at login" : "Won't open at login"); };
+$("fastOnDevice").onchange = async (e) => { await api("/api/settings", { fast_on_device: e.target.checked }); toast("Saved"); };
 $("webSearch").onchange = async (e) => { await api("/api/settings", { web_search: e.target.checked }); toast("Saved"); };
 document.querySelectorAll("#themeSeg button").forEach((b) => b.onclick = async () => { await api("/api/settings", { theme: b.dataset.t }); applyLook({ ...settings, theme: b.dataset.t }); loadSettings(); });
 $("accents").onclick = async (e) => { const a = e.target.dataset.accent; if (!a) return; await api("/api/settings", { accent: a }); applyLook({ ...settings, accent: a }); loadSettings(); };
@@ -991,6 +1000,17 @@ window.HS = {
     document.querySelector("main").appendChild(sec);
     return sec;
   },
+  registerMemoryTab({ id, label, html = "", onShow }) {
+    const btn = document.createElement("button");
+    btn.dataset.tab = id; btn.textContent = label;
+    $("memTabs").appendChild(btn);
+    const sec = document.createElement("div");
+    sec.className = "mtab"; sec.id = `tab-${id}`; sec.hidden = true; sec.innerHTML = html;
+    $("v-memory").appendChild(sec);
+    if (onShow) MEM_TAB_HOOKS[id] = onShow;
+    return sec;
+  },
+  openSession(id) { show("memory"); switchMemTab("sessions"); sstate.active = id; openSession(id); },
   registerSettings({ id, title, description = "", html = "", onLoad }) {
     const card = document.createElement("div");
     card.className = "card sect"; card.id = `set-${id}`;

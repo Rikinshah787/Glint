@@ -14,8 +14,16 @@ and "notice" messages so the UI can stream them.
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 from typing import Callable
+import itertools
+import queue
+import re
+import subprocess
+import threading
+import time
+from pathlib import Path
 
 Emit = Callable[[str, dict], None]
 
@@ -62,9 +70,23 @@ def validate_args(tool: Tool, args) -> str | None:
     return None
 
 
+def fill_optional(tool: Tool, args):
+    """Strict schemas list every parameter as required with null allowed; treat omitted ones as null."""
+    if not isinstance(args, dict):
+        return args
+    props = tool.schema.get("properties", {})
+    out = dict(args)
+    for key in tool.schema.get("required", []):
+        t = props.get(key, {}).get("type")
+        if key not in out and isinstance(t, list) and "null" in t:
+            out[key] = None
+    return out
+
+
 def call_tool(tool: Tool | None, args, emit: Emit) -> tuple[str, bool]:
     if tool is None:
         return "Error: unknown tool", True
+    args = fill_optional(tool, args)
     err = validate_args(tool, args)
     if err:
         return f"Error: {err}", True
@@ -360,8 +382,252 @@ class OpenAIProvider:
             raise self._wrap(e) from e
 
 
+# ------------------------------------------------------------- Apple on-device
+
+APPLE_BIN = Path(__file__).resolve().parent.parent / "bin" / "glint-llm"
+APPLE_PROMPT_CHARS = 9000   # the on-device model has a ~4k-token window shared with its answer
+TIME_WORDS = re.compile(r"\b(today|this (morning|afternoon|evening)|tonight|yesterday|earlier|just now|"
+                        r"last (hour|few hours)|recent(ly)?|so far)\b", re.I)
+CHART_WORDS = re.compile(r"\b(chart|graph|plot|visuali[sz]e|breakdown)\b", re.I)
+SCREEN_WORDS = re.compile(r"\b(this|screen|window|page|here|on my screen|open)\b", re.I)
+
+
+class _AppleServer:
+    """One long-running glint-llm process shared by every caller (keeps the model warm)."""
+    lock = threading.Lock()
+    proc = None
+    available: bool | None = None
+    reason = ""
+    pending: dict = {}
+    ids = itertools.count(1)
+
+    @classmethod
+    def ensure(cls) -> bool:
+        with cls.lock:
+            if cls.proc and cls.proc.poll() is None:
+                return bool(cls.available)
+            if not APPLE_BIN.exists():
+                cls.available, cls.reason = False, "glint-llm helper not built"
+                return False
+            cls.proc = subprocess.Popen([str(APPLE_BIN)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                        stderr=subprocess.DEVNULL, text=True, bufsize=1)
+            first = cls.proc.stdout.readline()
+            try:
+                hello = json.loads(first)
+            except ValueError:
+                hello = {"ready": False, "availability": "helper failed to start"}
+            cls.available, cls.reason = bool(hello.get("ready")), hello.get("availability", "")
+            threading.Thread(target=cls._reader, args=(cls.proc,), daemon=True).start()
+            return cls.available
+
+    @classmethod
+    def _reader(cls, proc) -> None:
+        for line in proc.stdout:
+            try:
+                msg = json.loads(line)
+            except ValueError:
+                continue
+            q = cls.pending.get(msg.get("id"))
+            if q:
+                q.put(msg)
+        for q in list(cls.pending.values()):  # helper died: fail everything still waiting
+            q.put({"error": "on-device model stopped", "code": "other"})
+
+    @classmethod
+    def request(cls, payload: dict, on_delta=None, timeout: float = 60) -> str:
+        if not cls.ensure():
+            raise ProviderError("Apple Intelligence isn't available on this Mac. Turn it on in System Settings "
+                                "→ Apple Intelligence & Siri, or add a Claude/OpenAI key in Glint Settings.")
+        rid = str(next(cls.ids))
+        q: queue.Queue = queue.Queue()
+        cls.pending[rid] = q
+        try:
+            with cls.lock:
+                cls.proc.stdin.write(json.dumps({**payload, "id": rid}) + "\n")
+                cls.proc.stdin.flush()
+            deadline = time.time() + timeout
+            while True:
+                msg = q.get(timeout=max(0.1, deadline - time.time()))
+                if "delta" in msg and on_delta:
+                    on_delta(msg["delta"])
+                elif "text" in msg:
+                    return msg["text"]
+                elif "error" in msg:
+                    code = msg.get("code")
+                    if code == "context":
+                        raise ProviderError("That was too long for the on-device model.")
+                    if code == "guardrail":
+                        raise ProviderError("The on-device model declined this request.")
+                    raise ProviderError(f"On-device model error: {msg['error'][:200]}")
+        except queue.Empty:
+            raise ProviderError("The on-device model took too long.") from None
+        finally:
+            cls.pending.pop(rid, None)
+
+
+def apple_available() -> bool:
+    try:
+        return _AppleServer.ensure()
+    except OSError:
+        return False
+
+
+def _fit(instructions: str, prompt: str) -> tuple[str, str]:
+    instructions = instructions[:2500]
+    room = APPLE_PROMPT_CHARS - len(instructions)
+    if len(prompt) > room:  # keep the start (headers) and the end (the actual ask)
+        head = min(1500, room // 4)
+        prompt = prompt[:head] + "\n…\n" + prompt[-(room - head - 5):]
+    return instructions, prompt
+
+
+def _text_of(content) -> str:
+    if isinstance(content, list):
+        return "\n".join(p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text")
+    return str(content or "")
+
+
+def _conform(obj, schema: dict):
+    """Coerce a parsed JSON value to the schema's shape (fill missing required fields, fix types)."""
+    t = schema.get("type")
+    if isinstance(t, list):
+        t = next((x for x in t if x != "null"), None)
+    if t == "object":
+        obj = obj if isinstance(obj, dict) else {}
+        props = schema.get("properties", {})
+        out = {k: _conform(obj.get(k), v) for k, v in props.items()
+               if k in obj or k in schema.get("required", [])}
+        if schema.get("additionalProperties", True) is not False:
+            out.update({k: v for k, v in obj.items() if k not in props})
+        return out
+    if t == "array":
+        items = schema.get("items", {})
+        return [_conform(x, items) for x in obj] if isinstance(obj, list) else []
+    if t == "integer":
+        try:
+            return int(float(obj))
+        except (TypeError, ValueError):
+            return 0
+    if t == "number":
+        try:
+            return float(obj)
+        except (TypeError, ValueError):
+            return 0.0
+    if t == "boolean":
+        return bool(obj)
+    if t == "string":
+        if obj is None:
+            return ""
+        return obj if isinstance(obj, str) else json.dumps(obj) if isinstance(obj, (dict, list)) else str(obj)
+    return obj
+
+
+class AppleProvider:
+    """Apple's on-device model: private, free and fast; small context (~4k tokens), no tool calling.
+    Ask runs retrieval-first: memory is searched, then the model answers from what was found."""
+    name = "apple"
+    model = "apple-on-device"
+
+    def complete_text(self, system: str, prompt: str, max_tokens: int = 2000) -> str:
+        ins, pr = _fit(system, _text_of(prompt))
+        return _AppleServer.request({"instructions": ins, "prompt": pr, "max_tokens": min(max_tokens, 1500),
+                                     "temperature": 0.3}).strip()
+
+    def complete_json(self, system: str, prompt: str, schema: dict) -> dict:
+        shape = json.dumps(schema, separators=(",", ":"))[:2200]
+        ins = f"{system}\n\nReply with ONLY one JSON object (no prose, no code fences) matching this JSON schema:\n{shape}"
+        ins, pr = _fit(ins, _text_of(prompt))
+        last = ""
+        for attempt in range(2):
+            text = _AppleServer.request({"instructions": ins, "prompt": pr if not attempt else
+                                         pr + "\n\nYour previous reply was not valid JSON. Reply with JSON only.",
+                                         "max_tokens": 1200, "temperature": 0.2})
+            last = text
+            m = re.search(r"\{.*\}", text, re.S)
+            if m:
+                try:
+                    return _conform(json.loads(m.group(0)), schema)
+                except ValueError:
+                    continue
+        raise ProviderError(f"The on-device model didn't return valid JSON ({last[:80]!r}).")
+
+    def run(self, system: str, history: list[dict], tools: list[Tool], emit: Emit,
+            max_steps: int = 14, wrap_at: int = 12, web_search: bool = False) -> str:
+        by_name = {t.name: t for t in tools}
+        question = _text_of(history[-1]["content"]) if history else ""
+        found: list[str] = []
+        if "search_memory" in by_name:
+            out, _ = call_tool(by_name["search_memory"], {"query": question[:300], "limit": 8}, emit)
+            found.append("Matching captures:\n" + out[:3600])
+        if TIME_WORDS.search(question) and "get_today_activity" in by_name:
+            out, _ = call_tool(by_name["get_today_activity"], {}, emit)
+            found.append("Today's activity:\n" + out[:1600])
+        if "read_foreground_text" in by_name and SCREEN_WORDS.search(question):
+            out, _ = call_tool(by_name["read_foreground_text"], {}, emit)
+            found.append("Current window:\n" + out[:1800])
+        if CHART_WORDS.search(question) and "create_chart" in by_name and found:
+            ordered = sorted(found, key=lambda x: not x.startswith("Today's activity"))  # numbers first
+            self._chart(question, "\n\n".join(ordered), by_name["create_chart"], emit)
+        opening = re.search(r"<opening_context>(.*?)</opening_context>", system, re.S)
+        ins = ("You are Glint, a private assistant on the user's Mac. Answer the question using the memory "
+               "excerpts (text captured from the user's screen, with times and apps). Be specific: what, when, "
+               "which app. Write natural sentences in your own words; never paste raw excerpt lines or timestamps "
+               "in brackets. If the excerpts don't contain the answer, say so plainly. Keep it short.\n\n"
+               + (opening.group(1).strip()[:1500] if opening else ""))
+        convo = "\n".join(f"{m['role']}: {_text_of(m['content'])[:300]}" for m in history[-5:-1])
+        prompt = "\n\n".join(found) + (f"\n\nEarlier in this chat:\n{convo}" if convo else "") + \
+            f"\n\nQuestion: {question}"
+        ins, prompt = _fit(ins, prompt)
+        return _AppleServer.request({"instructions": ins, "prompt": prompt, "max_tokens": 700, "temperature": 0.3,
+                                     "stream": True}, on_delta=lambda d: emit("text", {"delta": d})).strip()
+
+    def _chart(self, question: str, context: str, tool: Tool, emit: Emit) -> None:
+        """No native tool calling on-device: extract chart data from what was found, then draw it."""
+        schema = {"type": "object", "additionalProperties": False,
+                  "required": ["chart_type", "title", "labels", "values", "unit"],
+                  "properties": {"chart_type": {"type": "string", "enum": ["bar", "line", "ring"]},
+                                 "title": {"type": "string"}, "unit": {"type": "string"},
+                                 "labels": {"type": "array", "items": {"type": "string"}},
+                                 "values": {"type": "array", "items": {"type": "number"}}}}
+        try:
+            spec = self.complete_json("Build a chart for the request using only numbers present in the data. "
+                                      "Up to 8 items. Use a bar chart unless asked otherwise.",
+                                      f"Request: {question}\n\nData:\n{context[:4000]}", schema)
+        except ProviderError as e:
+            print(f"[ai] chart skipped: {e}", file=sys.stderr, flush=True)
+            return
+        n = min(len(spec["labels"]), len(spec["values"]), 8)
+        if not n:
+            print("[ai] chart skipped: no data points", file=sys.stderr, flush=True)
+        if n:
+            out, err = call_tool(tool, {"chart_type": spec["chart_type"] or "bar", "title": spec["title"] or "Chart",
+                                        "labels": spec["labels"][:n], "unit": spec["unit"] or None,
+                                        "series": [{"name": spec["unit"] or "Value", "values": spec["values"][:n]}]},
+                                 emit)
+            if err:
+                print(f"[ai] chart tool rejected: {out[:200]}", file=sys.stderr, flush=True)
+
+    def list_models(self) -> list[str]:
+        return [self.model]
+
+
 def make_provider(provider: str, keys: dict, models: dict):
-    """keys/models: {'claude': ..., 'openai': ...}. Raises ProviderError if not configured."""
+    """keys/models: {'claude': ..., 'openai': ...}. Raises ProviderError if not configured.
+    provider: auto (cloud key if set, else on-device) | apple | claude | openai."""
+    if provider == "auto":
+        if keys.get("claude"):
+            return ClaudeProvider(keys["claude"], models["claude"])
+        if keys.get("openai"):
+            return OpenAIProvider(keys["openai"], models["openai"])
+        if apple_available():
+            return AppleProvider()
+        raise ProviderError("No AI model is set up. Turn on Apple Intelligence (System Settings) for the free "
+                            "on-device model, or add a Claude/OpenAI key in Glint Settings.")
+    if provider == "apple":
+        if not apple_available():
+            raise ProviderError(f"Apple's on-device model isn't available ({_AppleServer.reason or 'unknown'}). "
+                                "Turn on Apple Intelligence in System Settings, or pick Claude/OpenAI.")
+        return AppleProvider()
     if provider == "openai":
         if not keys.get("openai"):
             raise ProviderError("Add your OpenAI API key in Settings to use Ask.")

@@ -41,7 +41,9 @@ KEYCHAIN_SERVICE = "Glint"
 SELF_APPS = {"glint"}  # never capture our own windows
 # System authentication / lock surfaces: never captured, never counted.
 SYSTEM_SKIP_APPS = {"securityagent", "coreautha", "loginwindow", "screensaverengine",
-                    "universalaccessauthwarn", "coreservicesuiagent", "authenticationservicesagent"}
+                    "universalaccessauthwarn", "coreservicesuiagent", "authenticationservicesagent",
+                    "usernotificationcenter", "notificationcenter", "controlcenter", "dock", "systemuiserver",
+                    "windowmanager", "spotlight"}
 
 
 def web_host(url: str | None) -> str | None:
@@ -52,7 +54,8 @@ def web_host(url: str | None) -> str | None:
     return host if host and ("." in host or host == "localhost") else None
 
 DEFAULT_SETTINGS = {
-    "provider": "claude",
+    "provider": "auto",                # auto | apple | claude | openai
+    "fast_on_device": True,            # quick tasks (autocomplete, dictation cleanup) on Apple's model
     "claude_model": "claude-opus-5-5",
     "openai_model": "gpt-5",
     "capture_enabled": True,
@@ -226,8 +229,28 @@ def api_keys() -> dict:
 
 def provider(s: dict | None = None):
     s = s or load_settings()
-    return ai.make_provider(s["provider"], api_keys(),
-                            {"claude": s["claude_model"], "openai": s["openai_model"]})
+    keys, models = api_keys(), {"claude": s["claude_model"], "openai": s["openai_model"]}
+    if s["provider"] in ("claude", "openai") and not keys.get(s["provider"]):
+        return ai.make_provider("auto", keys, models)  # chosen cloud model has no key: use what works
+    return ai.make_provider(s["provider"], keys, models)
+
+
+def fast_provider(s: dict | None = None):
+    """Quick, latency-sensitive tasks: Apple's on-device model when enabled and available."""
+    s = s or load_settings()
+    if s.get("fast_on_device", True) and ai.apple_available():
+        return ai.AppleProvider()
+    return provider(s)
+
+
+def ai_status() -> dict:
+    s = load_settings()
+    try:
+        effective = provider(s).name
+    except ai.ProviderError:
+        effective = None
+    return {"provider": s["provider"], "effective": effective, "apple": ai.apple_available(),
+            "apple_reason": ai._AppleServer.reason, "fast_on_device": s.get("fast_on_device", True)}
 
 
 # ----------------------------------------------------------------- capture
@@ -500,8 +523,21 @@ def session_digest(sid: str, budget: int = 24000) -> str:
     return "\n".join(lines)[:budget]
 
 
+SESSION_SCHEMA_EXTRA: dict = {}   # features add summary fields: {"name": json_schema}
+SESSION_DELETE_HOOKS: list = []   # fn(session_id) after a session (and its captures) is deleted
+SESSION_SUMMARY_HOOKS: list = []  # fn(session_id, summary_dict) after a summary is saved
+
+
+def session_schema() -> dict:
+    schema = json.loads(json.dumps(SESSION_SCHEMA))
+    for k, v in SESSION_SCHEMA_EXTRA.items():
+        schema["properties"][k] = v
+        schema["required"].append(k)
+    return schema
+
+
 def summarize_session(sid: str) -> dict:
-    r = provider().complete_json(SESSION_SYSTEM, session_digest(sid), SESSION_SCHEMA)
+    r = provider().complete_json(SESSION_SYSTEM, session_digest(sid), session_schema())
     q = {k: max(0, min(100, int(r["quality"][k]))) for k in ("focus", "depth", "consistency", "recovery")}
     overall = round(sum(q.values()) / 4)
     top_app = (session_rows("s.id = ?", (sid,), 1) or [{"apps": [("Work", 0)]}])[0]["apps"][:1]
@@ -510,6 +546,11 @@ def summarize_session(sid: str) -> dict:
            "insights=?, status='summarized' WHERE id=?",
            (title, r["summary"], (r.get("project") or "").strip()[:60] or None, r["state_tag"], r["state_name"], overall,
             json.dumps({**q, "rationale": r["quality"]["rationale"]}), json.dumps(r["insights"][:3]), sid))
+    for hook in SESSION_SUMMARY_HOOKS:
+        try:
+            hook(sid, r)
+        except Exception as e:
+            log(f"summary hook failed: {e}")
     return {**r, "title": title, "focus_score": overall}
 
 
@@ -769,6 +810,15 @@ def tool_revise_session(args: dict) -> str:
         sets.append("insights=?")
         params.append(json.dumps(fields["insights"][:3]))
     n = _write(f"UPDATE sessions SET {', '.join(sets)} WHERE id LIKE ?", (*params, args["session_id"] + "%"))
+    if n:  # keep search and the knowledge graph in step with the corrected report
+        row = session_rows("s.id LIKE ?", (args["session_id"] + "%",), 1)
+        if row:
+            for hook in SESSION_SUMMARY_HOOKS:
+                try:
+                    hook(row[0]["id"], {"title": row[0]["title"], "summary": row[0]["summary"],
+                                        "project": row[0].get("project"), "insights": row[0]["insights"]})
+                except Exception as e:
+                    log(f"summary hook failed: {e}")
     return "Session report revised." if n else "Error: unknown session id."
 
 
@@ -853,6 +903,8 @@ answering — never ask whether you should search. One focused search usually be
 captures when they settle the question.
 - If memory doesn't contain the answer, say so plainly and suggest what to search instead.
 - Keep answers short unless the user asks for detail. Use Markdown lists for multiple items.
+- For questions about a person, project, document or topic across time, memory_graph shows what it
+  connects to and which sessions mention it.
 - Save to lasting memory only durable preferences, corrections and standing notes."""
 
 QUICK_SYSTEM = ASK_SYSTEM + """
@@ -1088,7 +1140,7 @@ def polish(text: str, app: str, url_host: str | None = None) -> dict:
     prompt = (f"App: {app or 'unknown'} ({cat}). Style: {STYLE_RULES.get(style, STYLE_RULES['formal'])}.\n"
               + (f"Dictionary:\n{terms}\n" if terms else "") + f"\nDictated text:\n{text}")
     try:
-        out = provider().complete_text(POLISH_SYSTEM, prompt, max_tokens=4000)
+        out = fast_provider().complete_text(POLISH_SYSTEM, prompt, max_tokens=4000)
         return {"text": out or text.strip(), "polished": bool(out), "category": cat}
     except Exception as e:  # never lose the user's words
         log(f"polish skipped: {e}")
@@ -1399,7 +1451,7 @@ def status_payload() -> dict:
     return {"capture": {**CAPTURER.status, "session_id": CAPTURER.session_id,
                         "paused_until": CAPTURER.paused_until * 1000 if CAPTURER.paused_until else None,
                         "enabled": s["capture_enabled"]},
-            "provider": s["provider"], "keys": {k: bool(v) for k, v in keys.items()},
+            "provider": s["provider"], "keys": {k: bool(v) for k, v in keys.items()}, "ai": ai_status(),
             "memory": stats}
 
 
@@ -1635,6 +1687,11 @@ def _delete_session(b):
         d.close()
     if CAPTURER.session_id == b["id"]:
         CAPTURER.session_id = None
+    for hook in SESSION_DELETE_HOOKS:
+        try:
+            hook(b["id"])
+        except Exception as e:
+            log(f"session delete hook failed: {e}")
     return {"deleted_captures": n}
 
 
@@ -1685,6 +1742,7 @@ def _embed_now():
 GET_ROUTES = {
     "/api/status": lambda q: status_payload(),
     "/api/features": lambda q: {"features": LOADED_FEATURES},
+    "/api/ai/status": lambda q: ai_status(),
     "/api/today": lambda q: today_activity(q.get("date")),
     "/api/sessions": lambda q: session_rows(limit=int(q.get("limit", 100))),
     "/api/session": _session_detail,
