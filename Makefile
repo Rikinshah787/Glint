@@ -14,7 +14,7 @@ help:
 	@echo "make run      dev build, then open it"
 	@echo "make package  self-contained dist/Glint.app (embedded Python, no .venv needed)"
 	@echo "make dmg      dist/Glint-$(VERSION)-arm64.dmg from the packaged app, verified"
-	@echo "make test     engine tests (memory + retrieval; downloads the ~90 MB model once)"
+	@echo "make test     engine tests (memory, retrieval, autocomplete eval; the eval skips without Apple's on-device model)"
 	@echo "make check    static checks: Python compile, node --check, swiftc -typecheck"
 	@echo "make demo     run scripts/demo.sh"
 	@echo "make clean    remove dist/"
@@ -37,6 +37,8 @@ dmg: package
 test:
 	$(PYTHON) -W ignore engine/tests/test_memory.py
 	$(PYTHON) -W ignore engine/tests/test_retrieval.py
+	$(PYTHON) -W ignore engine/tests/test_autocomplete_eval.py
+	$(PYTHON) -W ignore engine/tests/test_sessions.py
 
 check:
 	$(PYTHON) -m py_compile engine/*.py engine/features/*.py

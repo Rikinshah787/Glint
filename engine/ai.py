@@ -522,6 +522,43 @@ def _conform(obj, schema: dict):
     return obj
 
 
+def _salvage_json(text: str):
+    """Parse the first JSON object in `text`; if the model was cut off mid-reply, close it at the last
+    complete field (the small on-device context can end a reply early)."""
+    start = text.find("{")
+    if start < 0:
+        return None
+    s, stack, in_str, esc, cut = text[start:], [], False, False, None
+    for i, ch in enumerate(s):
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch in "{[":
+            stack.append("}" if ch == "{" else "]")
+        elif ch in "}]" and stack:
+            stack.pop()
+            if not stack:
+                try:
+                    return json.loads(s[:i + 1])
+                except ValueError:
+                    break
+        elif ch == ",":
+            cut = (i, list(stack))
+    if cut:
+        try:
+            return json.loads(s[:cut[0]] + "".join(reversed(cut[1])))
+        except ValueError:
+            return None
+    return None
+
+
 class AppleProvider:
     """Apple's on-device model: private, free and fast; small context (~4k tokens), no tool calling.
     Ask runs retrieval-first: memory is searched, then the model answers from what was found."""
@@ -535,20 +572,18 @@ class AppleProvider:
 
     def complete_json(self, system: str, prompt: str, schema: dict) -> dict:
         shape = json.dumps(schema, separators=(",", ":"))[:2200]
-        ins = f"{system}\n\nReply with ONLY one JSON object (no prose, no code fences) matching this JSON schema:\n{shape}"
+        ins = (f"{system}\n\nReply with ONLY one JSON object (no prose, no code fences) matching this JSON schema. "
+               f"Keep every string short (titles under 8 words, sentences under 30 words):\n{shape}")
         ins, pr = _fit(ins, _text_of(prompt))
         last = ""
         for attempt in range(2):
             text = _AppleServer.request({"instructions": ins, "prompt": pr if not attempt else
                                          pr + "\n\nYour previous reply was not valid JSON. Reply with JSON only.",
-                                         "max_tokens": 1200, "temperature": 0.2})
+                                         "max_tokens": 2000, "temperature": 0.2})
             last = text
-            m = re.search(r"\{.*\}", text, re.S)
-            if m:
-                try:
-                    return _conform(json.loads(m.group(0)), schema)
-                except ValueError:
-                    continue
+            obj = _salvage_json(text)
+            if isinstance(obj, dict) and obj:
+                return _conform(obj, schema)
         raise ProviderError(f"The on-device model didn't return valid JSON ({last[:80]!r}).")
 
     def run(self, system: str, history: list[dict], tools: list[Tool], emit: Emit,
@@ -609,6 +644,43 @@ class AppleProvider:
 
     def list_models(self) -> list[str]:
         return [self.model]
+
+
+# ------------------------------------------------------------- fast short calls
+
+FAST_CLAUDE_MODEL = "claude-haiku-5-5"   # latency-sensitive helpers (autocomplete)
+
+
+def fast_text(provider, system: str, prompt: str, max_tokens: int = 80, timeout: float = 1.5) -> str:
+    """One short, single-shot completion tuned for latency: minimal reasoning, no retries and a hard
+    timeout. Works with any provider; cloud providers get their fastest request shape."""
+    if isinstance(provider, ClaudeProvider):
+        client = provider.client.with_options(timeout=timeout, max_retries=0)
+        kw: dict = {"output_config": {"effort": "low"}}
+        if "haiku" in provider.model:
+            kw["thinking"] = {"type": "disabled"}  # allowed on Haiku at effort high or below
+        try:
+            resp = client.messages.create(model=provider.model, max_tokens=max_tokens, system=system,
+                                          messages=[{"role": "user", "content": prompt}], **kw)
+        except provider._anthropic.APIError as e:
+            raise provider._wrap(e) from e
+        if resp.stop_reason == "refusal":
+            raise ProviderError("The model declined this request.")
+        return "".join(b.text for b in resp.content if b.type == "text").strip()
+    if isinstance(provider, OpenAIProvider):
+        client = provider.client.with_options(timeout=timeout, max_retries=0)
+        kw = ({"reasoning_effort": "minimal", "max_completion_tokens": max(400, max_tokens)}
+              if re.match(r"^(gpt-5|o\d)", provider.model) else {"max_tokens": max_tokens})
+        try:
+            resp = client.chat.completions.create(
+                model=provider.model, messages=[{"role": "system", "content": system},
+                                                {"role": "user", "content": prompt}], **kw)
+        except provider._openai.APIError as e:
+            raise provider._wrap(e) from e
+        return (resp.choices[0].message.content or "").strip()
+    ins, pr = _fit(system, prompt)
+    return _AppleServer.request({"instructions": ins, "prompt": pr, "max_tokens": max_tokens,
+                                 "temperature": 0.2}, timeout=timeout).strip()
 
 
 def make_provider(provider: str, keys: dict, models: dict):

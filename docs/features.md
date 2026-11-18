@@ -11,7 +11,9 @@ fallback covers apps without accessible text. Password fields, password managers
 windows, system authentication surfaces and Glint itself are never captured. You can block more apps,
 or limit text capture to a list of apps (others get titles only).
 
-**Work sessions.** Activity is grouped into sessions that end after 3 minutes without input. When one ends,
+**Work sessions.** Activity is grouped into sessions that end after 3 minutes without input; coming back
+within 10 minutes (configurable) continues the same session. A long session splits when you spend ten focused
+minutes on unrelated work (a different app, or a different site in the browser). When one ends,
 the AI model writes a report: a short title, a 1-3 sentence summary, the project, the dominant activity,
 four 0-100 scores (focus, depth, consistency, recovery) with a rationale, and up to three insights with the
 evidence behind them. You can rename, re-project, annotate, re-summarize or delete any session.
@@ -52,7 +54,12 @@ as Markdown. Ask can create them for you.
 
 ## Writing help
 
-**Autocomplete everywhere.** After a short typing pause in any text field, Glint suggests a continuation.
+**Autocomplete everywhere.** After a short typing pause in any text field, Glint suggests a continuation
+as inline ghost text. It uses what's on screen (the email thread or chat you're replying to), relevant
+memory, and how you write in that app, so suggestions finish your thought with real names, dates and facts.
+**Tab** accepts the next phrase, **Shift+Tab** one word, **↓** shows alternatives, **Esc** dismisses, and
+**⌥Esc** turns it off for the current app. It works in mail, chat, docs and browser fields, and in the chat
+and commit boxes of VS Code, Cursor and Windsurf (never inside the code editor or terminal).
 <kbd>Tab</kbd> (or <kbd>`</kbd>) accepts the next phrase, <kbd>⇧</kbd><kbd>Tab</kbd> one word,
 <kbd>↓</kbd> cycles options, <kbd>Esc</kbd> dismisses, <kbd>⌥</kbd><kbd>Tab</kbd> asks right away.
 Skips password fields, code editors and terminals; can be disabled per app. It learns from text you accept,

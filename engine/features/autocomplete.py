@@ -2,21 +2,24 @@
 
 The native shell (mac/Autocomplete.swift) watches the focused text field, and after a typing
 pause asks POST /api/autocomplete/suggest for continuations of the text before the caret. This
-module builds a compact prompt (recent screen context, the user's own writing in that app, bio),
-calls the user's provider with low effort and a short answer, filters the result through quiet
-rules, and answers within a time budget so the chip can appear while it is still useful.
+module gathers compact, relevant context (the conversation or document visible in the same window,
+a couple of matching memory passages, how the user writes in this app, the app/site and a cleaned
+window title), routes the call to the fastest suitable model (a cloud model when a key exists,
+with the on-device model as the fallback), filters the result through quiet rules, and answers
+within a time budget so the suggestion appears while it is still useful.
 
-Outcomes (accepted / dismissed / ignored) feed local stats and a bounded per-app store of the
-user's own writing, which later prompts use to match the user's voice. Nothing leaves the Mac
-except the prompt sent to the user's own AI provider.
+The user's own writing (finished sentences they typed, plus accepted suggestions) is kept as a
+bounded per-app sample store that later prompts use to match their voice. It never leaves the Mac
+except inside the prompt sent to the user's own AI provider (none when on-device).
 """
 from __future__ import annotations
 
+import os
 import re
 import threading
 import time
 from collections import OrderedDict, deque
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout, wait, FIRST_COMPLETED
 from datetime import date
 
 import ai
@@ -24,19 +27,24 @@ import engine as E
 
 E.DEFAULT_SETTINGS.update({
     "autocomplete_enabled": True,
-    "autocomplete_style": "under",          # under | normal | ghost
+    "autocomplete_style": "ghost",          # ghost (inline, falls back to under) | under | normal
     "autocomplete_mode": "automatic",       # automatic | on_demand (Option+Tab summons)
     "autocomplete_accept_key": "tab",       # tab | backtick | both
     "autocomplete_disabled_apps": [],
     "autocomplete_min_chars": 12,
-    "autocomplete_pause_ms": 450,
-    "autocomplete_model": "",               # blank: the model chosen for Ask
+    "autocomplete_pause_ms": 350,
+    "autocomplete_model": "",               # blank: Claude Haiku / the OpenAI model chosen for Ask
+    "autocomplete_model_mode": "auto",      # auto (cloud when a key exists) | on_device | cloud
+    "autocomplete_learn_typing": True,      # learn the user's voice from sentences they finish typing
 })
 
 STYLES = {"under", "normal", "ghost"}
-TIME_BUDGET_S = 2.5          # answer "too slow" rather than show a stale chip
-PROVIDER_TIMEOUT_S = 8.0     # hard stop for calls that outlive the budget (their result is cached)
-MIN_GAP_S = 0.25             # minimum spacing between provider calls
+MODEL_MODES = {"auto", "on_device", "cloud"}
+TIME_BUDGET_S = 2.5          # answer "too slow" rather than show a stale suggestion
+CLOUD_TIMEOUT_S = 1.5        # auto mode: a cloud call slower than this falls back to on-device
+CLOUD_HEDGE_S = 0.8          # auto mode: start the on-device call too if the cloud is this slow
+ON_DEVICE_TIMEOUT_S = 6.0    # hard stop for on-device calls (their late result is still cached)
+MIN_GAP_S = 0.2              # minimum spacing between model calls
 MAX_PER_MINUTE = 40
 MAX_INFLIGHT = 2
 CACHE_SIZE = 300
@@ -45,48 +53,50 @@ SAMPLES_PER_APP = 40
 SAMPLE_APPS_MAX = 80
 SAMPLE_MAX_CHARS = 400
 MAX_SUGGESTION_CHARS = 140
+MAX_WORDS = 12
+CONTEXT_CHARS = 6000         # whole prompt budget (the on-device model has a ~4k-token window)
+WINDOW_CHARS = 1200
+FACT_DAYS = 14
+LEGACY = os.environ.get("GLINT_AC_LEGACY") == "1"   # run the previous prompt (eval baseline)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS autocomplete_samples (
     id INTEGER PRIMARY KEY AUTOINCREMENT, app TEXT NOT NULL, text TEXT NOT NULL,
-    created_at INTEGER NOT NULL);
+    created_at INTEGER NOT NULL, source TEXT NOT NULL DEFAULT 'accepted');
 CREATE INDEX IF NOT EXISTS idx_ac_samples_app ON autocomplete_samples(app, created_at DESC);
 """
 
-SYSTEM = """You write inline autocomplete for a person typing on their Mac. You see the text \
-before their cursor and must predict what THEY will type next, in their own words.
-
-Rules:
-- Continue exactly at the cursor. Output only the new characters, never the text already typed.
-- If the cursor is mid-word, start by finishing that word (no leading space). Otherwise begin \
-with a space when one is needed.
-- Keep it short: finish the current sentence or clause, at most about 12 words. Never a newline.
-- Match their language, tone, casing and punctuation habits (see their writing samples).
-- Use the screen context only to get names, facts and topics right. Never invent specific \
-facts (names, numbers, dates, links) that are not supported by the context.
-- If you cannot predict confidently, or the field holds a password, URL, code or a search \
-query, return an empty list.
-
-Return "suggestions": up to {n} alternative continuations (the exact characters to insert, \
-including any leading space), most likely first."""
-
-OUTPUT_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["suggestions"],
-                 "properties": {"suggestions": {"type": "array", "items": {"type": "string"}}}}
-
 _lock = threading.Lock()
 _cache: OrderedDict = OrderedDict()          # key -> (ts, suggestions)
-_recent_calls: deque = deque()               # provider call timestamps (rate limit)
+_recent_calls: deque = deque()               # model call timestamps (rate limit)
 _inflight = 0
 _last_call = 0.0
-_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="autocomplete")
-_provider_cache: dict = {"key": None, "at": 0.0, "value": None, "error": None}
+_pool = ThreadPoolExecutor(max_workers=6, thread_name_prefix="autocomplete")
+_cloud_cache: dict = {"key": None, "at": 0.0, "value": None}
 _stats_lock = threading.Lock()
+_schema_ok = False
+_model_used = 0.0                            # last on-device call (the model cools after ~5 s idle)
+_warming = threading.Event()
 
 
 # ----------------------------------------------------------------- helpers
 
 def _settings() -> dict:
     return E.load_settings()
+
+
+def _db():
+    """Feature DB connection with this module's table (and its `source` column) in place."""
+    global _schema_ok
+    d = E.db()
+    if not _schema_ok:
+        d.executescript(SCHEMA)
+        cols = {r[1] for r in d.execute("PRAGMA table_info(autocomplete_samples)")}
+        if "source" not in cols:
+            d.execute("ALTER TABLE autocomplete_samples ADD COLUMN source TEXT NOT NULL DEFAULT 'accepted'")
+            d.commit()
+        _schema_ok = True
+    return d
 
 
 def _app_key(app: str, url_host: str | None) -> str:
@@ -98,35 +108,6 @@ def _app_key(app: str, url_host: str | None) -> str:
 def _disabled(app: str, bundle_id: str, s: dict) -> bool:
     names = {(a or "").strip().lower() for a in s.get("autocomplete_disabled_apps") or []}
     return bool(names & {(app or "").lower(), (bundle_id or "").lower()} - {""})
-
-
-def _provider(s: dict):
-    """The user's provider (optionally with an autocomplete-specific model), cached for a minute
-    because building one reads the Keychain."""
-    if s.get("fast_on_device", True) and not (s.get("autocomplete_model") or "").strip() and ai.apple_available():
-        return ai.AppleProvider()  # on-device: fast, free, private; no keychain read needed
-    model = (s.get("autocomplete_model") or "").strip()
-    key = (s["provider"], model, s["claude_model"], s["openai_model"])
-    pc = _provider_cache
-    if pc["key"] == key and time.time() - pc["at"] < 60:
-        if pc["error"]:
-            raise pc["error"]
-        return pc["value"]
-    models = {"claude": s["claude_model"], "openai": s["openai_model"]}
-    if model:
-        models[s["provider"]] = model
-    try:
-        keys = E.api_keys()
-        name = "auto" if s["provider"] in ("claude", "openai") and not keys.get(s["provider"]) else s["provider"]
-        p = ai.make_provider(name, keys, models)
-        # Short, single-shot calls: no retries, and give up long before the SDK default.
-        if hasattr(p, "client") and hasattr(p.client, "with_options"):
-            p.client = p.client.with_options(timeout=PROVIDER_TIMEOUT_S, max_retries=0)
-        pc.update(key=key, at=time.time(), value=p, error=None)
-        return p
-    except ai.ProviderError as e:
-        pc.update(key=key, at=time.time(), value=None, error=e)
-        raise
 
 
 def _clip_tail(text: str, n: int) -> str:
@@ -164,6 +145,20 @@ def quiet_reason_for_input(before: str, after: str, s: dict) -> str | None:
     return None
 
 
+def _cap_words(c: str, n: int = MAX_WORDS) -> str:
+    """At most n words; prefer to stop at the last clause end inside the limit."""
+    words = re.findall(r"\S+\s*", c.lstrip(" "))
+    lead = c[:len(c) - len(c.lstrip(" "))]
+    if len(words) <= n:
+        return c
+    kept = words[:n]
+    for i in range(len(kept) - 1, max(2, n // 2) - 1, -1):
+        if kept[i].rstrip()[-1:] in ".,;:!?":
+            kept = kept[:i + 1]
+            break
+    return lead + "".join(kept).rstrip()
+
+
 def clean_suggestions(cands: list, before: str, after: str, n: int) -> tuple[list[str], str | None]:
     """Normalise model continuations and drop ones that add nothing."""
     cands = [c for c in (cands or []) if isinstance(c, str) and c.strip() and c.strip().upper() != "NONE"]
@@ -173,7 +168,7 @@ def clean_suggestions(cands: list, before: str, after: str, n: int) -> tuple[lis
     tail = before[-200:]
     reason = None
     for c in cands:
-        c = c.replace("\n", " ")
+        c = c.replace("\n", " ").replace(" ", " ")
         # The model sometimes repeats the end of the typed text; keep only what is new.
         for k in range(min(len(c), len(tail)), 3, -1):
             if tail.endswith(c[:k]):
@@ -187,6 +182,7 @@ def clean_suggestions(cands: list, before: str, after: str, n: int) -> tuple[lis
             c = c.lstrip(" ")
         elif before and before[-1] in ".,!?;:)" and c[:1].isalnum():
             c = " " + c
+        c = _cap_words(c)
         if len(c) > MAX_SUGGESTION_CHARS:
             cut = c[:MAX_SUGGESTION_CHARS].rsplit(" ", 1)[0]
             c = cut if cut.strip() else c[:MAX_SUGGESTION_CHARS]
@@ -199,6 +195,17 @@ def clean_suggestions(cands: list, before: str, after: str, n: int) -> tuple[lis
         if len(core) >= 12 and (core in _norm(before[-1500:]) or core in _norm(after[:1500])):
             reason = reason or "repeats"
             continue
+        # Quiet: it restates the sentence being written (a loop) rather than continuing it.
+        last_sentence = _norm(re.split(r"(?<=[.!?])\s+", before.strip())[-1])
+        if len(core) >= 12 and len(last_sentence) >= 12 and core.strip(" .") in last_sentence:
+            reason = reason or "repeats"
+            continue
+        # Quiet: mostly the same words as the end of the text (a paraphrased echo).
+        cw = re.findall(r"\w+", core)
+        bw = set(re.findall(r"\w+", before[-300:].lower()))
+        if len(cw) >= 5 and sum(w in bw for w in cw) / len(cw) >= 0.85:
+            reason = reason or "repeats"
+            continue
         if all(_norm(o) != core for o in out):
             out.append(c)
         if len(out) >= n:
@@ -206,77 +213,653 @@ def clean_suggestions(cands: list, before: str, after: str, n: int) -> tuple[lis
     return out, (None if out else reason or "unsure")
 
 
+# ------------------------------------------------------------------ titles
+
+BROWSER_SUFFIX = re.compile(r"\s+[-–—]\s+(Google Chrome|Chromium|Brave|Microsoft Edge|Arc|Safari|Firefox|Vivaldi|Opera)"
+                            r"(\s+[-–—]\s+.*)?$")
+UNREAD = re.compile(r"^\(\d+\+?\)\s*|^\*\s*")
+
+
+def clean_title(title: str) -> str:
+    """Drop the browser name and profile label (e.g. ' - Google Chrome - Work') from window titles."""
+    return BROWSER_SUFFIX.sub("", title or "").strip()
+
+
+def context_label(app: str, title: str, host: str | None) -> str:
+    """A short human description of where the user is typing: 'Gmail, email "Re: Q3 budget"',
+    'Slack #design', 'Slack, message to Dana Lee', 'Google Docs, "Launch plan"'."""
+    t = UNREAD.sub("", clean_title(title))
+    host = (host or "").lower().removeprefix("www.")
+    app_l = (app or "").lower()
+    if host == "mail.google.com" or t.endswith("- Gmail"):
+        m = re.match(r"^(.*?)\s+-\s+\S+@\S+\s+-\s+Gmail$", t)
+        subj = (m.group(1) if m else t.rsplit(" - ", 1)[0]).strip()
+        return "Gmail" + (f', email "{subj}"' if subj and not subj.lower().startswith(("inbox", "sent", "drafts")) else "")
+    if "outlook" in host or app_l == "microsoft outlook" or app_l == "mail":
+        subj = re.sub(r"\s+[-–—]\s+(Outlook|Mail|Inbox).*$", "", t).strip()
+        return f"{app or 'Mail'}" + (f', email "{subj}"' if subj else "")
+    if app_l == "slack" or host.endswith("slack.com"):
+        m = re.match(r"^(.*?)\s+\((Channel|DM|Private channel|Group DM)\)\s+-\s+(.*?)\s+-\s+Slack", t)
+        if m:
+            kind, name = m.group(2), m.group(1).strip()
+            return f"Slack, message to {name}" if "DM" in kind else f"Slack #{name.lstrip('#')}"
+        m = re.match(r"^Slack\s*\|\s*([^|]+)\|", t)
+        if m:
+            return f"Slack {m.group(1).strip()}"
+        return "Slack"
+    if app_l == "discord" or host == "discord.com":
+        return "Discord" + (f" {t.split(' | ')[0]}" if t else "")
+    if host == "web.whatsapp.com" or app_l == "whatsapp":
+        return "WhatsApp"
+    if app_l == "messages":
+        return "Messages" + (f", chat with {t}" if t and t != "Messages" else "")
+    if host == "docs.google.com":
+        name = re.sub(r"\s+-\s+Google (Docs|Sheets|Slides)$", "", t)
+        kind = re.search(r"Google (Docs|Sheets|Slides)", t)
+        return f"Google {kind.group(1) if kind else 'Docs'}" + (f', "{name}"' if name else "")
+    if host.endswith("linear.app") or app_l == "linear":
+        return "Linear" + (f', "{t}"' if t else "")
+    if host.endswith("notion.so") or app_l == "notion":
+        return "Notion" + (f', "{t}"' if t else "")
+    t = re.sub(r"\s+[-–—|]\s+" + re.escape(app or "§") + r"$", "", t) if app else t
+    label = app or "an app"
+    if host and host not in label.lower():
+        label += f" ({host})"
+    return label + (f', "{t[:100]}"' if t and t.lower() != (app or "").lower() else "")
+
+
 # --------------------------------------------------------------- context
 
-def _screen_context(app: str, title: str, url_host: str | None, limit_chars: int = 1800) -> str:
-    """Most recent captured text of the current window (falls back to the app), then one other
-    recent window, so suggestions can use names and facts the user is looking at."""
+_WORDS: set | None = None
+
+
+def _words() -> set:
+    global _WORDS
+    if _WORDS is None:
+        try:
+            with open("/usr/share/dict/words") as f:
+                _WORDS = {w.strip().lower() for w in f}
+        except OSError:
+            _WORDS = set()
+    return _WORDS
+
+
+def _is_word(w: str) -> bool:
+    return w.lower() in _words()
+
+
+WORD_RE = re.compile(r"[A-Za-z][\w'’-]{2,}")
+COMMON_CAPS = set("""I I'm I'll I've I'd Hi Hey Hello Thanks Thank Dear Best Regards Cheers Yes No Ok Okay Sure
+Sounds Great Good Also And But So The This That These Those It It's We We're We'll You You're Let Let's Just
+Please Sorry Re Fwd Fw Mr Mrs Ms Dr Maybe Could Would Should Can Will Did Do Does Is Are Was Were Not What When
+Where Why How Who Which If Then There Here My Our Your Their Any All Some Happy Looking Glad Hope Of In On At
+For To From With As After Before Since Today Tomorrow Yesterday Tonight Next Last Yeah Yep Nope Cool Nice Awesome
+Perfect Agreed Noted Got Sent See Talk Call Remember Note Action Recap Timeline Goal Ideas Thursday's""".split())
+
+
+VAGUE = set("""about above after again against almost already also always another anyone anything around away
+back because been before being below best better between both came come coming could does doing done down during
+each either else enough even ever every everyone everything fine first from going gone good great have having here
+hope into just keep know last later least less like little long look looking made make many maybe more most much
+must need never next nice night nothing once only other over people please pretty quick quite really right said same
+says should since some someone something soon still such sure take tell than thank thanks that their them then there
+these they thing things think this those though through time today together tomorrow tonight took totally under until
+very want wanted week well were what when where which while will with without work would yeah year years your""".split())
+
+
+def _keywords(text: str, limit: int = 6) -> tuple[list[str], list[str]]:
+    """(names / codes, other content words) from the sentence being written, most recent first."""
+    sentence = " ".join(re.split(r"(?<=[.!?\n])\s+", text.strip())[-2:])[-240:]
+    proper, other = [], []
+    prev = ""
+    for tok in re.findall(r"\S+", sentence):
+        start = not prev or prev[-1:] in ".!?:"
+        prev = tok
+        w = re.sub(r"^[^\w]+|[^\w]+$", "", tok)
+        w = re.sub(r"['’]s$", "", w)
+        low = w.lower()
+        if re.fullmatch(r"#?\w*\d\w*", w) and len(w.strip("#")) >= 2:
+            proper.append(w.strip("#"))          # numbers and codes: 1442, ENG-482, 4471
+        elif len(w) < 3 or not WORD_RE.fullmatch(w) or low in E.mem.STOPWORDS or low in VAGUE:
+            continue
+        elif w[0].isupper() and w not in COMMON_CAPS and not (start and _is_word(low)):
+            proper.append(w)
+        elif len(w) >= 4 and (not w[0].isupper() or start):
+            other.append(low)
+    proper = list(dict.fromkeys(reversed(proper)))[:limit]
+    other = list(dict.fromkeys(reversed(other)))
+    return proper, other[:max(0, limit - len(proper))]
+
+
+def _strip_draft(text: str, before: str) -> str:
+    """Remove the user's own draft from a captured window (captures may include the text box)."""
+    for line in before.splitlines()[-6:]:
+        line = line.strip()
+        if len(line) >= 15:
+            text = text.replace(line, "")
+    return text
+
+
+def _relevant_tail(text: str, before: str, limit: int = WINDOW_CHARS) -> str:
+    """The end of a window's text (usually the latest message / the part near the field), plus a
+    few earlier lines that share words with what the user is writing."""
+    lines, seen = [], set()
+    for raw in text.splitlines():
+        line = re.sub(r"[ \t]+", " ", raw).strip()
+        key = line.lower()
+        if len(line) < 3 or key in seen:
+            continue
+        seen.add(key)
+        lines.append(line)
+    if not lines:
+        return ""
+    tail, used = [], 0
+    tail_budget = int(limit * 0.72)
+    for line in reversed(lines):
+        if used + len(line) > tail_budget and tail:
+            break
+        tail.insert(0, line[-tail_budget:])
+        used += len(line) + 1
+    start = len(lines) - len(tail)
+    proper, other = _keywords(before, 8)
+    terms = {t.lower() for t in proper + other}
+    extra = []
+    if terms and start > 0:
+        scored = []
+        for i, line in enumerate(lines[:start]):
+            words = {w.lower() for w in WORD_RE.findall(line)}
+            hit = len(words & terms)
+            if hit:
+                scored.append((hit, i, line[:260]))
+        room = limit - used
+        for hit, i, line in sorted(scored, key=lambda x: (-x[0], -x[1])):
+            if room - len(line) < 0:
+                continue
+            extra.append((i, line))
+            room -= len(line) + 1
+            if len(extra) >= 3:
+                break
+    head = [line for _, line in sorted(extra)]
+    return "\n".join(head + (["…"] if head else []) + tail)
+
+
+def window_context(app: str, title: str, host: str | None, before: str, limit: int = WINDOW_CHARS) -> tuple[str, str | None]:
+    """(relevant tail of the newest capture of this window, its chunk id)."""
+    app_id = (app or "").strip().lower()
+    clean = clean_title(title)
+    now = E.now_ms()
+    row = None
     with E.DB_LOCK:
         d = E.db()
         try:
-            rows = []
-            if title:
-                rows = d.execute("SELECT app_id, window_title, text FROM memory_chunks WHERE window_title=? "
-                                 "AND source != 'title_only' AND captured_at > ? ORDER BY captured_at DESC LIMIT 1",
-                                 (title, E.now_ms() - 6 * 3_600_000)).fetchall()
-            if not rows and (app or url_host):
-                rows = d.execute("SELECT app_id, window_title, text FROM memory_chunks WHERE (app_id=? OR url_host=?) "
-                                 "AND source != 'title_only' AND captured_at > ? ORDER BY captured_at DESC LIMIT 1",
-                                 (app or "", url_host or "", E.now_ms() - 3_600_000)).fetchall()
-            other = d.execute("SELECT app_id, window_title, text FROM memory_chunks WHERE source != 'title_only' "
-                              "AND window_title != ? AND captured_at > ? ORDER BY captured_at DESC LIMIT 1",
-                              (title or "", E.now_ms() - 1_800_000)).fetchall()
+            if clean:
+                like = clean.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+                row = d.execute("SELECT id, text FROM memory_chunks WHERE (window_title=? OR window_title LIKE ? ESCAPE '\\') "
+                                "AND source != 'title_only' AND captured_at > ? ORDER BY captured_at DESC LIMIT 1",
+                                (title, like, now - 12 * 3_600_000)).fetchone()
+            if not row and host and not clean:
+                row = d.execute("SELECT id, text FROM memory_chunks WHERE (url_host=? OR url_host=?) AND source != 'title_only' "
+                                "AND captured_at > ? ORDER BY captured_at DESC LIMIT 1",
+                                (host, "www." + host.removeprefix("www."), now - 1_800_000)).fetchone()
+            if not row and app_id and not host and not clean:
+                row = d.execute("SELECT id, text FROM memory_chunks WHERE app_id=? AND source != 'title_only' "
+                                "AND captured_at > ? ORDER BY captured_at DESC LIMIT 1",
+                                (app_id, now - 900_000)).fetchone()
         finally:
             d.close()
-    parts = []
-    for i, (a, t, txt) in enumerate(rows + other):
-        budget = int(limit_chars * (0.7 if i == 0 else 0.3))
-        body = re.sub(r"[ \t]+", " ", txt or "").strip()
-        # The end of a window's text is usually the latest message / the part near the field.
-        parts.append(f"({a} — {t})\n{_clip_tail(body, budget)}")
-    return "\n\n".join(parts)
+    if not row:
+        return "", None
+    return _relevant_tail(_strip_draft(row[1] or "", before), before, limit), row[0]
 
 
-def samples_for(app_key: str, limit: int = 5) -> list[str]:
+def memory_facts(before: str, window_text: str, exclude_chunk: str | None, n: int = 2,
+                 width: int = 260) -> list[str]:
+    """1-2 short memory passages matching the names, codes and keywords of the sentence being
+    written (and of the latest message on screen, which it often answers). Keyword (FTS) search
+    only, last FACT_DAYS days: this must stay well under 50 ms. A passage needs two distinct
+    matching terms, so a name that appears everywhere is not enough on its own."""
+    proper, other = _keywords(before)
+    wp, wo = _keywords(window_text[-300:], 9) if window_text else ([], [])
+    terms = list(dict.fromkeys(proper + other + wp + wo))[:14]
+    if len(terms) < 2:
+        return []
+    fts = " OR ".join(f'"{t.lower()}"*' for t in terms)
+    since = E.now_ms() - FACT_DAYS * 86_400_000
     with E.DB_LOCK:
         d = E.db()
         try:
-            d.executescript(SCHEMA)
-            rows = d.execute("SELECT text FROM autocomplete_samples WHERE app=? ORDER BY created_at DESC LIMIT ?",
-                             (app_key, limit)).fetchall()
-            if len(rows) < 2:  # thin history for this app: borrow from anywhere
-                rows += d.execute("SELECT text FROM autocomplete_samples WHERE app!=? ORDER BY created_at DESC LIMIT ?",
+            rows = d.execute(
+                "SELECT p.chunk_id, p.text, bm25(memory_passages_fts) FROM memory_passages_fts "
+                "JOIN memory_passages p ON p.id = memory_passages_fts.rowid "
+                "WHERE memory_passages_fts MATCH ? AND p.captured_at > ? "
+                "ORDER BY bm25(memory_passages_fts) LIMIT 16", (fts, since)).fetchall()
+        except Exception:
+            rows = []
+        finally:
+            d.close()
+    own = {t.lower() for t in proper + other}
+    win = _norm(window_text)
+    draft = _norm(before[-400:])
+    scored = []
+    for rank, (cid, text, _) in enumerate(rows):
+        if cid == exclude_chunk:
+            continue
+        low = text.lower()
+        hits = [t for t in terms if re.search(r"(?<!\w)" + re.escape(t.lower()), low)]
+        kinds = [("code" if re.search(r"\d", t) else "name" if t[:1].isupper() else "word",
+                  t.lower() in own) for t in hits]
+        # It must match the sentence being written itself: one of its words or codes, or two of
+        # its names (a single name appears everywhere). Window terms only add weight.
+        if not any(o and k != "name" for k, o in kinds) and sum(o and k == "name" for k, o in kinds) < 2:
+            continue
+        weight = {("code", True): 3, ("word", True): 2, ("name", True): 1.5,
+                  ("code", False): 1.5, ("word", False): 1, ("name", False): 0.5}
+        score = sum(weight[k] for k in kinds)
+        if score < 2.5:
+            continue
+        scored.append((-score, rank, text, hits))
+    out: list[str] = []
+    for _, _, text, hits in sorted(scored):
+        snip = re.sub(r"\s+", " ", E.mem.snippet(text, [t.lower() for t in hits], width=width)).strip()
+        ns = _norm(snip)
+        if len(ns) < 20 or ns[:60] in win or ns[:60] in draft or any(ns[:60] in _norm(o) for o in out):
+            continue
+        out.append(snip)
+        if len(out) >= n:
+            break
+    return out
+
+
+def samples_for(app_key: str, limit: int = 5, like: str = "", borrow: bool = True) -> list[str]:
+    """The user's own writing in this app, preferring typed sentences and ones that share words
+    with what is being written now."""
+    with E.DB_LOCK:
+        d = _db()
+        try:
+            rows = d.execute("SELECT text, source FROM autocomplete_samples WHERE app=? ORDER BY created_at DESC LIMIT 16",
+                             (app_key,)).fetchall()
+            if borrow and len(rows) < limit:  # thin history for this app: borrow from anywhere
+                rows += d.execute("SELECT text, source FROM autocomplete_samples WHERE app!=? ORDER BY created_at DESC LIMIT ?",
                                   (app_key, limit - len(rows))).fetchall()
         finally:
             d.close()
-    return [r[0] for r in rows]
+    if not like:
+        return [r[0] for r in rows[:limit]]
+    words = {w.lower() for w in WORD_RE.findall(like[-300:])}
+    ranked = sorted(enumerate(rows), key=lambda ir: (-len(words & {w.lower() for w in WORD_RE.findall(ir[1][0])}),
+                                                     ir[1][1] != "typed", ir[0]))
+    return [r[0] for _, r in ranked[:limit]]
 
 
-def build_prompt(b: dict, n: int) -> str:
-    app, title, host = b.get("app") or "", clean_title(b.get("title") or ""), b.get("url_host") or ""
+def gather_context(b: dict) -> dict:
+    """Everything a prompt needs, within the on-device budget. Logged sizes only, never text."""
+    t0 = time.time()
+    app, title, host = b.get("app") or "", b.get("title") or "", b.get("url_host") or ""
     before = b.get("text_before") or ""
-    after = b.get("text_after") or ""
-    parts = [f"App: {app}" + (f" · {host}" if host else "") + (f"\nWindow: {title[:160]}" if title else "")]
-    bio = (E.kv_get("bio", "") or "").strip()
-    if bio:
-        parts.append(f"About the user:\n{bio[:500]}")
-    samples = samples_for(_app_key(app, host))
-    if samples:
-        parts.append("The user's own writing (for voice):\n" + "\n".join(f"- {_clip_tail(x, 220)}" for x in samples))
+    ctx = {"label": context_label(app, title, host), "field": (b.get("field_hint") or "").strip()[:80],
+           "window": "", "facts": [], "samples": [], "bio": "", "terms": []}
     try:
-        terms = [e["value"] for e in E.dictionary()[:25]]
-        if terms:
-            parts.append("Spellings the user uses: " + ", ".join(terms))
+        ctx["window"], chunk = window_context(app, title, host, before)
+    except Exception as e:
+        E.log(f"autocomplete window context failed: {e}")
+        chunk = None
+    t1 = time.time()
+    try:
+        ctx["facts"] = memory_facts(before, ctx["window"], chunk)
+    except Exception as e:
+        E.log(f"autocomplete memory facts failed: {e}")
+    t2 = time.time()
+    try:
+        ctx["samples"] = samples_for(_app_key(app, host), 2, like=before, borrow=False)
     except Exception:
         pass
-    screen = _screen_context(app, title, host)
-    if screen:
-        parts.append(f"On screen recently:\n{screen}")
-    if after.strip():
-        parts.append(f"Text after the cursor (do not repeat it):\n{after[:300]}")
-    parts.append(f"Text before the cursor (continue from the very end, after the last character):\n"
-                 f"<<<{_clip_tail(before, 1500)}>>>\n\nGive up to {n} continuation(s), or NONE.")
+    ctx["bio"] = (E.kv_get("bio", "") or "").strip()[:240]
+    try:
+        ctx["terms"] = [e["value"] for e in E.dictionary()[:12]]
+    except Exception:
+        pass
+    ctx["timing"] = (int((t1 - t0) * 1000), int((t2 - t1) * 1000), int((time.time() - t2) * 1000))
+    return ctx
+
+
+# ---------------------------------------------------------------- prompts
+
+INSTRUCTIONS = (
+    "You are the user's inline autocomplete. Predict exactly what THEY will type next to finish "
+    "their current sentence, in their voice.\n"
+    "Answer format: copy the last 3 to 5 words of the user's text exactly, then continue with at most "
+    "10 new words. One line. No quotes, no explanation.\n"
+    "- If the text ends in the middle of a word, first finish that word.\n"
+    "- Be specific: when the screen or notes contain the exact name, number, date, time, place or "
+    "fact that finishes the thought, use it word for word.\n"
+    "- Never invent names, numbers, dates, times, prices or places that are not in the context.\n"
+    "- If the conversation asks something, the user is usually answering it.\n"
+    "- Write as the user (first person), not as the other person. Match their tone and casing.")
+
+LEGACY_INSTRUCTIONS = (
+    "You are inline autocomplete. Start by repeating the last few words of the user's text exactly, "
+    "then continue it naturally with at most 10 more words that finish their thought. Match their tone. "
+    "Output only that, on one line: no quotes, no explanation. Never add people's names, numbers or dates "
+    "that do not already appear in the user's text.")
+
+CLOUD_SUFFIX = (
+    "\nGive up to {n} different likely continuations, one per line, each in the answer format above "
+    "(last words of the user's text, then the continuation). Most likely first. If you cannot predict "
+    "anything useful, answer NONE.")
+
+
+def unfinished_word(before: str) -> str | None:
+    """The last word when it looks cut off (not in the system word list), e.g. 'Pri', 'turnar'."""
+    m = re.search(r"([A-Za-z]{2,})$", before)
+    if not m:
+        return None
+    w = m.group(1)
+    return w if _words() and not _is_word(w.lower()) and len(w) < 12 else None
+
+
+def complete_from_context(fragment: str, *texts: str) -> str | None:
+    """The rest of a word from the context that starts with an unfinished fragment ('Pri' ->
+    'ya' from 'Priya'), when exactly one such word stands out."""
+    counts: dict = {}
+    for text in texts:
+        for w in re.findall(r"[A-Za-z][\w'’-]+", text or ""):
+            if len(w) > len(fragment) and w.lower().startswith(fragment.lower()) \
+                    and (not fragment[0].isupper() or w[0].isupper()):
+                counts[w] = counts.get(w, 0) + 1
+    if not counts:
+        return None
+    best = sorted(counts.items(), key=lambda kv: -kv[1])
+    if len(best) > 1 and best[0][1] == best[1][1]:
+        return None
+    return best[0][0][len(fragment):]
+
+
+def build_prompt(b: dict, ctx: dict, budget: int = CONTEXT_CHARS) -> str:
+    """Context sections in order of usefulness, trimmed to the budget; the caret text is last."""
+    before = b.get("text_before") or ""
+    after = (b.get("text_after") or "").strip()
+    head = f"Typing in: {ctx['label']}" + (f"\nText box: {ctx['field']}" if ctx.get("field") else "")
+    cut = unfinished_word(before)
+    caret = (f'(The last word "{cut}" is unfinished: complete it first.)\n' if cut else "") + \
+        f"User's text so far:\n{_clip_tail(before, 700 if budget < CONTEXT_CHARS else 900)}"
+    parts = [head]
+    room = budget - len(head) - len(caret) - len(INSTRUCTIONS) - 300
+    if ctx.get("window") and room > 200:
+        w = _clip_tail(ctx["window"], min(WINDOW_CHARS, room - 100))
+        parts.append(f"On screen in this window (latest last):\n{w}")
+        room -= len(w) + 40
+    if ctx.get("facts") and room > 150:
+        fx = "\n".join(f"- {f}" for f in ctx["facts"])[:max(0, min(600, room))]
+        parts.append(f"From the user's notes (use only if relevant):\n{fx}")
+        room -= len(fx) + 40
+    if ctx.get("samples") and room > 120:
+        sm = "\n".join(f"- {_clip_tail(x, 160)}" for x in ctx["samples"][:2])
+        parts.append(f"The user's tone in this app (examples only, never copy them):\n{sm}")
+        room -= len(sm) + 30
+    if ctx.get("bio") and room > 120:
+        parts.append(f"About the user: {ctx['bio'][:min(240, room - 20)]}")
+        room -= 260
+    if ctx.get("terms") and room > 80:
+        parts.append("Spellings they use: " + ", ".join(ctx["terms"])[:min(200, room)])
+    if after:
+        parts.append(f"Text after the cursor (do not repeat it):\n{after[:200]}")
+    parts.append(caret)
     return "\n\n".join(parts)
+
+
+def align_continuation(before: str, out: str) -> str:
+    """The model echoes the end of the text, then continues; strip the echo so only new text remains,
+    keeping the model's own spacing at the boundary. Leading ellipses ('...now') become a space."""
+    cont = _align(before, out)
+    if re.match(r"^\s*(\.{2,}|…)", cont):
+        cont = " " + re.sub(r"^\s*(\.{2,}|…)\s*", "", cont)
+    return cont if cont.strip() else ""
+
+
+def _align(before: str, out: str) -> str:
+    lines = [ln.strip() for ln in (out or "").strip().splitlines() if ln.strip()]
+    out = " ".join(lines).strip().strip('"“”').replace("…", " ").strip()
+    if not out:
+        return ""
+    norm_b = re.sub(r"\s+", " ", before).lower()
+    low = out.lower()
+    words = norm_b.split()
+    for k in range(min(len(out), 160), 2, -1):  # longest echoed prefix that ends the user's text
+        if norm_b.endswith(re.sub(r"\s+", " ", low[:k])):
+            rest = out[k:]
+            # Some answers echo twice ("see you … see you Thursday"): cut after the last echo.
+            tail = " ".join(words[-3:])
+            i = rest.lower().rfind(tail) if len(words) >= 3 and len(tail) >= 10 else -1
+            return rest[i + len(tail):] if i >= 0 else rest
+    # The echo may start part-way through the user's text, or be followed by a paraphrase: cut
+    # after the last place the output contains the final words of the text.
+    for take in range(min(6, len(words)), 1, -1):
+        tail = " ".join(words[-take:])
+        if len(tail) < 7:
+            continue
+        i = low.rfind(tail)
+        if i >= 0:
+            rest = out[i + len(tail):]
+            head = out[:i].strip()
+            # Answer first, echo last ("December 4 users on"): the part before the echo is new.
+            if not rest.strip() and head and _norm(head) not in norm_b and len(head.split()) <= MAX_WORDS:
+                return " " + head
+            return rest
+    # An echo of an earlier stretch of the text (not its end): drop that leading phrase.
+    ow = out.split()
+    recent = norm_b[-800:]
+    for take in range(min(len(ow) - 1, 16), 3, -1):
+        if " ".join(ow[:take]).lower() in recent:
+            return " " + " ".join(ow[take:])
+    # No echo found: treat it as a continuation of a finished word.
+    if before and before[-1].isalnum() and out[:1].isalnum():
+        return " " + out
+    return out
+
+
+DAYS_MONTHS = set("""monday tuesday wednesday thursday friday saturday sunday january february march april may june
+july august september october november december jan feb mar apr jun jul aug sep sept oct nov dec""".split())
+
+
+def _new_sentence_midway(before: str, c: str, known: str) -> bool:
+    """'…I'll review it and' + ' Nothing showing?': a capitalised ordinary word right after an
+    unfinished clause starts a new sentence (usually text copied from the screen), not a
+    continuation. Names, days and words capitalised mid-sentence in the context are fine."""
+    if not re.search(r"[a-z,]$", before.rstrip()) or before[-1:] == "\n":
+        return False
+    m = re.match(r"\s*([A-Z][a-z]+)\b", c)
+    if not m:
+        return False
+    w = m.group(1)
+    if w in ("I", "Im") or w.lower() in DAYS_MONTHS or not _is_word(w.lower()):
+        return False
+    return not re.search(r"[a-z,]\s+" + re.escape(w) + r"\b", known)
+
+
+GREETING_START = re.compile(r"^\s*(Great|Thanks|Thank you|Sure|Yes|No|Okay|Ok|Sounds good|Hi|Hello|Hey|Perfect|"
+                            r"Awesome|Cool|Got it|Noted)\b")
+DANGLING = set("a an the at on in to by for of from with around before after until and or but my your our".split())
+
+
+def ground(sugg: list[str], before: str, ctx: dict) -> tuple[list[str], str | None]:
+    """Keep suggestions honest: a number or name that appears nowhere in what the model was shown
+    is cut off (with any dangling words before it); a reply that starts a new sentence in the
+    middle of the user's (e.g. 'see you' + 'Great, ...') is dropped."""
+    known_raw = " ".join([before, ctx.get("window") or "", " ".join(ctx.get("facts") or []),
+                          " ".join(ctx.get("samples") or []), ctx.get("label") or "", ctx.get("field") or "",
+                          ctx.get("bio") or "", " ".join(ctx.get("terms") or [])])
+    known = known_raw.lower()
+    out, reason = [], None
+    for c in sugg:
+        if (before[-1:].isalpha() and GREETING_START.match(c) and c[:1] == " ") or _new_sentence_midway(before, c, known_raw):
+            reason = reason or "unsure"
+            continue
+        toks = re.findall(r"\S+\s*", c)
+        lead = c[:len(c) - len(c.lstrip())]
+        keep = []
+        for i, tok in enumerate(toks):
+            w = re.sub(r"^[^\w]+|[^\w]+$", "", tok.strip())
+            w = re.sub(r"['’]s$", "", w)
+            prev = (toks[i - 1].strip() if i else before.rstrip())[-1:]
+            sentence_start = prev in ".!?\n" or not prev
+            bad = any(n not in known for n in re.findall(r"\d+", w))
+            if not bad and re.fullmatch(r"[A-Z][a-zA-Z]+", w) and w not in COMMON_CAPS and not sentence_start:
+                bad = w.lower() not in known
+            if bad:
+                break
+            keep.append(tok)
+        if len(keep) < len(toks):
+            while keep and re.sub(r"[^\w]", "", keep[-1]).lower() in DANGLING:
+                keep.pop()
+            text = lead + "".join(keep).strip()
+            if len(re.findall(r"\w+", text)) < 2 or not text.strip():
+                reason = reason or "ungrounded"
+                continue
+            c = text.rstrip(" ,;:-—")
+        out.append(c)
+    return out, (None if out else reason)
+
+
+# ------------------------------------------------------------ model calls
+
+def _on_device_legacy(b: dict) -> list[str]:
+    """The previous on-device prompt: app, title, samples and the typed text only (eval baseline)."""
+    app, title = b.get("app") or "", clean_title(b.get("title") or "")[:80]
+    before = b.get("text_before") or ""
+    samples = samples_for(_app_key(app, b.get("url_host")))[:2]
+    prompt = (f"App: {app}" + (f" — {title}" if title else "") + "\n"
+              + ("".join(f"Their style: {_clip_tail(x, 140)}\n" for x in samples))
+              + f"User's text so far:\n{_clip_tail(before, 500)}")
+    text = ai._AppleServer.request({"instructions": LEGACY_INSTRUCTIONS, "prompt": prompt,
+                                    "max_tokens": 28, "temperature": 0.2}, timeout=ON_DEVICE_TIMEOUT_S)
+    cont = align_continuation(before, text)
+    return [cont] if cont.strip() else []
+
+
+def finish_word(before: str, ctx: dict, conts: list[str]) -> list[str]:
+    """When the text ends in a cut-off word the model did not complete, but the screen or notes
+    contain exactly one word it could be, offer that word's ending instead."""
+    frag = unfinished_word(before)
+    if not frag:
+        return conts
+    if conts and conts[0][:1].isalpha():
+        return conts
+    rest = complete_from_context(frag, ctx.get("window", ""), " ".join(ctx.get("facts") or []),
+                                 " ".join(ctx.get("samples") or []))
+    return [rest] + [c for c in conts if c[:1].isalpha()] if rest else conts
+
+
+def _on_device(b: dict, ctx: dict) -> list[str]:
+    global _model_used
+    _model_used = time.time()
+    before = b.get("text_before") or ""
+    # The on-device model's time grows with the prompt: keep it to what changes the answer most.
+    prompt = build_prompt(b, {**ctx, "bio": "", "terms": []}, budget=4200)
+    ctx["prompt_chars"] = len(INSTRUCTIONS) + len(prompt)
+    text = ai._AppleServer.request({"instructions": INSTRUCTIONS, "prompt": prompt,
+                                    "max_tokens": 32, "temperature": 0.0}, timeout=ON_DEVICE_TIMEOUT_S)
+    cont = align_continuation(before, text)
+    return finish_word(before, ctx, [cont] if cont.strip() else [])
+
+
+def _cloud(provider, b: dict, ctx: dict, n: int) -> list[str]:
+    before = b.get("text_before") or ""
+    text = ai.fast_text(provider, INSTRUCTIONS + CLOUD_SUFFIX.format(n=n), build_prompt(b, ctx, budget=9000),
+                        max_tokens=40 * n, timeout=CLOUD_TIMEOUT_S + 1.0)
+    out = []
+    for line in (text or "").splitlines():
+        line = re.sub(r"^\s*(\d+[.)]|[-*•])\s+", "", line).strip()
+        if not line or line.upper() == "NONE":
+            continue
+        cont = align_continuation(before, line)
+        if cont.strip():
+            out.append(cont)
+    return finish_word(before, ctx, out)
+
+
+def _cloud_provider(s: dict):
+    """The user's cloud provider with a fast model, or None when no key is set. Cached for a
+    minute because finding the keys reads the Keychain."""
+    model = (s.get("autocomplete_model") or "").strip()
+    key = (s["provider"], model, s["openai_model"])
+    pc = _cloud_cache
+    if pc["key"] == key and time.time() - pc["at"] < 60:
+        return pc["value"]
+    p = None
+    try:
+        keys = E.api_keys()
+        order = ["claude", "openai"]
+        if s["provider"] == "openai":
+            order.reverse()
+        name = next((k for k in order if keys.get(k)), None)
+        if name == "claude":
+            p = ai.ClaudeProvider(keys["claude"], model or ai.FAST_CLAUDE_MODEL)
+        elif name == "openai":
+            p = ai.OpenAIProvider(keys["openai"], model or s["openai_model"])
+    except Exception as e:
+        E.log(f"autocomplete cloud provider unavailable: {e}")
+        p = None
+    pc.update(key=key, at=time.time(), value=p)
+    return p
+
+
+def route(s: dict) -> tuple[object | None, bool]:
+    """(cloud provider or None, on-device usable) for the current settings."""
+    mode = s.get("autocomplete_model_mode") or "auto"
+    if mode not in MODEL_MODES:
+        mode = "auto"
+    apple = ai.apple_available()
+    if mode == "on_device":
+        return None, apple
+    cloud = _cloud_provider(s)
+    if mode == "cloud":
+        return cloud, apple and cloud is None   # on-device only when no key is set
+    return cloud, apple
+
+
+def _generate(b: dict, n: int, cloud, apple: bool, ctx: dict) -> tuple[list[str], str]:
+    """Run the routed model(s). With both available, the cloud answer wins if it arrives within
+    CLOUD_TIMEOUT_S; the on-device call starts once the cloud is CLOUD_HEDGE_S late."""
+    if LEGACY:
+        return _on_device_legacy(b), "on_device_legacy"
+    if cloud is None:
+        return _on_device(b, ctx), "on_device"
+    if not apple:
+        return _cloud(cloud, b, ctx, n), "cloud"
+    t0 = time.time()
+    fc = _pool.submit(_cloud, cloud, b, ctx, n)
+
+    def good(f) -> bool:
+        if not f.done():
+            return False
+        if f.exception():
+            if f is fc:
+                E.log(f"autocomplete cloud call failed, using on-device: {f.exception()}")
+            return False
+        return bool(f.result())
+
+    wait([fc], timeout=CLOUD_HEDGE_S)
+    if good(fc):
+        return fc.result(), "cloud"
+    fd = _pool.submit(_on_device, b, ctx)
+    pending = {fc, fd}
+    while pending:
+        left = max(0.05, ON_DEVICE_TIMEOUT_S - (time.time() - t0))
+        done, pending = wait(pending, timeout=left, return_when=FIRST_COMPLETED)
+        if not done:
+            break
+        if fc in done and good(fc):
+            return fc.result(), "cloud" if time.time() - t0 <= CLOUD_TIMEOUT_S + 0.1 else "cloud_late"
+        if fd in done and good(fd):
+            # Prefer a cloud answer that is about to land inside its window.
+            if fc in pending and time.time() - t0 < CLOUD_TIMEOUT_S:
+                wait([fc], timeout=CLOUD_TIMEOUT_S - (time.time() - t0))
+                if good(fc):
+                    return fc.result(), "cloud"
+            return fd.result(), "on_device"
+    if fd.done() and fd.exception():
+        raise fd.exception()
+    return [], "none"
 
 
 # --------------------------------------------------------------- suggest
@@ -319,7 +902,7 @@ def _cache_put(key: tuple, sugg: list[str]) -> None:
 
 
 def _admit() -> str | None:
-    """Rate limit: returns a quiet reason when a provider call must not start now."""
+    """Rate limit: returns a quiet reason when a model call must not start now."""
     global _inflight, _last_call
     now = time.time()
     with _lock:
@@ -345,82 +928,91 @@ def _release() -> None:
         _inflight = max(0, _inflight - 1)
 
 
-ON_DEVICE_INSTRUCTIONS = (
-    "You are inline autocomplete. Start by repeating the last few words of the user's text exactly, "
-    "then continue it naturally with at most 10 more words that finish their thought. Match their tone. "
-    "Output only that, on one line: no quotes, no explanation. Never add people's names, numbers or dates "
-    "that do not already appear in the user's text.")
-
-BROWSER_SUFFIX = re.compile(r"\s+[-–—]\s+(Google Chrome|Chromium|Brave|Microsoft Edge|Arc|Safari|Firefox)"
-                            r"(\s+[-–—]\s+.*)?$")
-
-
-def clean_title(title: str) -> str:
-    """Drop the browser name and profile label (e.g. ' - Google Chrome - Work') from window titles."""
-    return BROWSER_SUFFIX.sub("", title or "").strip()
-
-
-def align_continuation(before: str, out: str) -> str:
-    """The model echoes the end of the text, then continues; strip the echo so only new text remains,
-    keeping the model's own spacing at the boundary."""
-    out = out.strip().strip('"').splitlines()[0] if out.strip() else ""
-    norm_b = re.sub(r"\s+", " ", before).lower()
-    low = out.lower()
-    for k in range(min(len(out), 80), 2, -1):  # longest echoed prefix that ends the user's text
-        if norm_b.endswith(re.sub(r"\s+", " ", low[:k])):
-            return out[k:]
-    # No echo found: treat it as a continuation of a finished word.
-    if before and before[-1].isalnum() and out[:1].isalnum():
-        return " " + out
-    return out
-
-
-def _call_on_device(b: dict) -> list[str]:
-    app, title = b.get("app") or "", clean_title(b.get("title") or "")[:80]
-    before = b.get("text_before") or ""
-    samples = samples_for(_app_key(app, b.get("url_host")))[:2]
-    prompt = (f"App: {app}" + (f" — {title}" if title else "") + "\n"
-              + ("".join(f"Their style: {_clip_tail(x, 140)}\n" for x in samples))
-              + f"User's text so far:\n{_clip_tail(before, 500)}")
-    text = ai._AppleServer.request({"instructions": ON_DEVICE_INSTRUCTIONS, "prompt": prompt,
-                                    "max_tokens": 28, "temperature": 0.2}, timeout=PROVIDER_TIMEOUT_S)
-    cont = align_continuation(before, text)
-    return [cont] if cont.strip() else []
-
-
-def _call(provider, prompt: str, n: int, b: dict, key: tuple) -> tuple[list[str], str | None]:
+def _call(b: dict, n: int, key: tuple, cloud, apple: bool) -> tuple[list[str], str | None, dict]:
     try:
-        if isinstance(provider, ai.AppleProvider):  # lean prompt + plain text: well under a second
-            sugg, reason = clean_suggestions(_call_on_device(b), b.get("text_before") or "",
-                                             b.get("text_after") or "", 1)
-            _cache_put(key, sugg)
-            return sugg, reason
-        out = provider.complete_json(SYSTEM.format(n=n), prompt, OUTPUT_SCHEMA)
-        sugg, reason = clean_suggestions((out or {}).get("suggestions"), b.get("text_before") or "",
-                                         b.get("text_after") or "", n)
+        ctx = {} if LEGACY else gather_context(b)
+        t_model = time.time()
+        raw, used = _generate(b, n, cloud, apple, ctx)
+        model_ms = int((time.time() - t_model) * 1000)
+        sugg, reason = clean_suggestions(raw, b.get("text_before") or "", b.get("text_after") or "", n)
+        if not LEGACY and sugg:
+            sugg, why = ground(sugg, b.get("text_before") or "", ctx)
+            reason = reason or why
         _cache_put(key, sugg)
-        return sugg, reason
+        info = {"model": used, "model_ms": model_ms, "prompt_chars": ctx.get("prompt_chars"), "ctx_ms": list(ctx.get("timing", ())), "window": len(ctx.get("window") or ""),
+                "facts": len(ctx.get("facts") or []), "samples": len(ctx.get("samples") or [])}
+        return sugg, reason, info
     finally:
         _release()
 
 
 def _warm_up() -> None:
     """Load the on-device model at launch so the first real suggestion isn't a cold start."""
+    _migrate_defaults()
     try:
         s = _settings()
-        if s.get("autocomplete_enabled") and s.get("fast_on_device", True) and ai.apple_available():
+        if s.get("autocomplete_enabled") and s.get("autocomplete_model_mode") != "cloud" and ai.apple_available():
             t0 = time.time()
-            _call_on_device({"app": "Notes", "title": "", "text_before": "Thanks for the update, I will"})
+            _on_device({"app": "Notes", "title": "", "text_before": "Thanks for the update, I will"},
+                       {"label": "Notes"})
             E.log(f"autocomplete warm-up {int((time.time() - t0) * 1000)} ms")
     except Exception as e:
         E.log(f"autocomplete warm-up skipped: {e}")
 
 
+def prewarm(b: dict | None = None) -> dict:
+    """POST /api/autocomplete/prewarm, sent when the user starts typing: the on-device model takes
+    about twice as long after a few idle seconds, so a one-token call now makes the real request,
+    a moment later, run hot."""
+    global _model_used
+    if _warming.is_set() or time.time() - _model_used < 4:
+        return {"ok": True, "warming": False}
+    s = _settings()
+    if not s.get("autocomplete_enabled") or s.get("autocomplete_model_mode") == "cloud" or not ai.apple_available():
+        return {"ok": True, "warming": False}
+    _warming.set()
+    _model_used = time.time()
+
+    def run():
+        try:
+            ai._AppleServer.request({"instructions": "Reply with one word.", "prompt": "ok", "max_tokens": 1,
+                                     "temperature": 0.0}, timeout=5)
+        except Exception:
+            pass
+        finally:
+            _warming.clear()
+    _pool.submit(run)
+    return {"ok": True, "warming": True}
+
+
+def _migrate_defaults() -> None:
+    """Once: move settings still at the old defaults (chip under the line, 450 ms pause) to the
+    new ones (inline ghost text, 350 ms)."""
+    try:
+        if E.kv_get("autocomplete:defaults_v2"):
+            return
+        s = _settings()
+        patch = {}
+        if s.get("autocomplete_style") == "under":
+            patch["autocomplete_style"] = "ghost"
+        if s.get("autocomplete_pause_ms") == 450:
+            patch["autocomplete_pause_ms"] = 350
+        if patch:
+            E.save_settings(patch)
+        E.kv_set("autocomplete:defaults_v2", True)
+    except Exception as e:
+        E.log(f"autocomplete settings migration skipped: {e}")
+
+
 def suggest(b: dict) -> dict:
     t0 = time.time()
     r = _suggest(b)
+    info = r.pop("_info", {})
     E.log(f"autocomplete app={str(b.get('app'))[:30]!r} ms={int((time.time() - t0) * 1000)} "
-          f"n={len(r.get('suggestions') or [])} quiet={r.get('quiet_reason')}")
+          f"n={len(r.get('suggestions') or [])} quiet={r.get('quiet_reason')} src={b.get('source', 'ax')}"
+          + (f" model={info.get('model')} model_ms={info.get('model_ms')} route_ms={info.get('route_ms')} "
+             f"ctx_ms={info.get('ctx_ms')} prompt={info.get('prompt_chars')} window={info.get('window')} "
+             f"facts={info.get('facts')} samples={info.get('samples')}" if info else ""))
     return r
 
 
@@ -452,37 +1044,32 @@ def _suggest(b: dict) -> dict:
         return {"suggestions": hit[:n], "cached": True, "ms": int((time.time() - t0) * 1000),
                 **({} if hit else {"quiet_reason": "unsure"})}
 
-    try:
-        provider = _provider(s)
-    except ai.ProviderError as e:
-        return quiet("no_provider", error=str(e))
+    t_route = time.time()
+    cloud, apple = route(s)
+    route_ms = int((time.time() - t_route) * 1000)
+    if cloud is None and not apple:
+        return quiet("no_provider", error="No model for autocomplete: turn on Apple Intelligence or add a key.")
     blocked = _admit()
     if blocked:
         return quiet(blocked)
+    fut = _pool.submit(_call, b, n, key, cloud, apple)
+    budget = max(0.2, TIME_BUDGET_S + (0.5 if cloud is None else 0.0) - (time.time() - t0))
     try:
-        prompt = build_prompt(b, n)
-    except Exception as e:
-        _release()
-        E.log(f"autocomplete prompt failed: {e}")
-        return quiet("error")
-    fut = _pool.submit(_call, provider, prompt, n, b, key)
-    limit = TIME_BUDGET_S + (1.0 if isinstance(provider, ai.AppleProvider) else 0.0)
-    budget = max(0.2, limit - (time.time() - t0))
-    try:
-        sugg, reason = fut.result(timeout=budget)
+        sugg, reason, info = fut.result(timeout=budget)
+        info["route_ms"] = route_ms
     except FutureTimeout:
-        return quiet("slow", retry_ms=1500)  # the call keeps running; its answer lands in the cache
+        return quiet("slow", retry_ms=1200)  # the call keeps running; its answer lands in the cache
     except ai.ProviderError as e:
         return quiet("provider_error", error=str(e))
     except Exception as e:
-        E.log(f"autocomplete failed: {e}")
+        E.log(f"autocomplete failed: {type(e).__name__}: {e}")
         return quiet("error")
     if not sugg:
-        return quiet(reason or "unsure")
-    return {"suggestions": sugg[:n], "ms": int((time.time() - t0) * 1000)}
+        return {**quiet(reason or "unsure"), "_info": info}
+    return {"suggestions": sugg[:n], "ms": int((time.time() - t0) * 1000), "model": info.get("model"), "_info": info}
 
 
-# ------------------------------------------------------- outcomes, stats
+# ------------------------------------------------------- outcomes, learning
 
 def _stats() -> dict:
     st = E.kv_get("autocomplete:stats") or {}
@@ -491,20 +1078,19 @@ def _stats() -> dict:
     return {**base, **st}
 
 
-def add_sample(app_key: str, text: str) -> bool:
+def add_sample(app_key: str, text: str, source: str = "accepted", min_chars: int = 20) -> bool:
     """Keep a bounded set of the user's own writing per app. A draft that grows replaces its
     earlier, shorter copy instead of piling up near-duplicates."""
     text = re.sub(r"[ \t]+", " ", (text or "")).strip()
     # Keep the current paragraph: earlier paragraphs may be quoted text the user did not write.
     text = text.rsplit("\n\n", 1)[-1].strip()
     text = _clip_tail(text, SAMPLE_MAX_CHARS).lstrip("…").strip()
-    if len(text) < 20 or len(text.split()) < 4:
+    if len(text) < min_chars or len(text.split()) < 3:
         return False
     with E.DB_LOCK:
-        d = E.db()
+        d = _db()
         try:
-            d.executescript(SCHEMA)
-            recent = d.execute("SELECT id, text FROM autocomplete_samples WHERE app=? ORDER BY created_at DESC LIMIT 6",
+            recent = d.execute("SELECT id, text FROM autocomplete_samples WHERE app=? ORDER BY created_at DESC LIMIT 8",
                                (app_key,)).fetchall()
             head = _norm(text)[:40]
             for rid, old in recent:
@@ -512,10 +1098,9 @@ def add_sample(app_key: str, text: str) -> bool:
                 if o == _norm(text) or (head and o[:40] == head) or o in _norm(text):
                     d.execute("DELETE FROM autocomplete_samples WHERE id=?", (rid,))
                 elif _norm(text) in o:
-                    d.close()
                     return False  # we already hold a longer version
-            d.execute("INSERT INTO autocomplete_samples (app, text, created_at) VALUES (?,?,?)",
-                      (app_key, text, E.now_ms()))
+            d.execute("INSERT INTO autocomplete_samples (app, text, created_at, source) VALUES (?,?,?,?)",
+                      (app_key, text, E.now_ms(), source))
             d.execute("DELETE FROM autocomplete_samples WHERE app=? AND id NOT IN (SELECT id FROM autocomplete_samples "
                       "WHERE app=? ORDER BY created_at DESC LIMIT ?)", (app_key, app_key, SAMPLES_PER_APP))
             apps = d.execute("SELECT app FROM autocomplete_samples GROUP BY app ORDER BY max(created_at) DESC").fetchall()
@@ -525,6 +1110,49 @@ def add_sample(app_key: str, text: str) -> bool:
         finally:
             d.close()
     return True
+
+
+EMAIL_RE = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.]+\b")
+SENSITIVE_APPS = ("1password", "bitwarden", "lastpass", "dashlane", "keepass", "keychain", "passwords",
+                  "terminal", "iterm", "warp", "ghostty", "kitty", "alacritty", "wezterm", "xcode")
+
+
+def learnable_sentences(text: str) -> list[str]:
+    """Sentences worth keeping as voice samples: real prose, not URLs, code, addresses or numbers."""
+    out = []
+    for line in re.split(r"\n+", text or ""):
+        line = re.sub(r"\s+", " ", line).strip()
+        if len(line) < 15 or len(line.split()) < 3:
+            continue
+        if URL_RE.search(line) or re.search(r"https?://|www\.", line) or EMAIL_RE.search(line):
+            continue
+        if CODE_RE.search(line) or re.search(r"[{}<>\[\]|\\]|\w+\(\)|==|->", line):
+            continue
+        visible = re.sub(r"\s", "", line)
+        letters = sum(ch.isalpha() for ch in visible)
+        digits = sum(ch.isdigit() for ch in visible)
+        if letters < 0.7 * len(visible) or digits > 0.15 * len(visible):
+            continue
+        if max((len(w) for w in line.split()), default=0) > 30:
+            continue  # tokens, hashes, run-together strings
+        out.append(line)
+    return out
+
+
+def learn(b: dict) -> dict:
+    """POST /api/autocomplete/learn: a sentence the user finished typing (sent, Return, long pause)."""
+    s = _settings()
+    app, bid = str(b.get("app") or ""), str(b.get("bundle_id") or "")
+    if not s.get("autocomplete_learn_typing", True) or not s.get("autocomplete_enabled"):
+        return {"ok": True, "learned": 0, "skipped": "off"}
+    low = f"{app} {bid}".lower()
+    if b.get("secure") or _disabled(app, bid, s) or any(x in low for x in SENSITIVE_APPS) \
+            or app.strip().lower() in E.SELF_APPS:
+        return {"ok": True, "learned": 0, "skipped": "app"}
+    lines = learnable_sentences(str(b.get("text") or "")[-2000:])
+    app_k = _app_key(app, b.get("url_host"))
+    learned = sum(add_sample(app_k, line, source="typed", min_chars=15) for line in lines[-3:])
+    return {"ok": True, "learned": learned}
 
 
 def outcome(b: dict) -> dict:
@@ -548,7 +1176,8 @@ def outcome(b: dict) -> dict:
         E.kv_set("autocomplete:stats", st)
     learned = False
     s = _settings()
-    if b.get("text") and kind in ("accepted", "ignored") and not _disabled(b.get("app", ""), b.get("bundle_id", ""), s):
+    learn_kinds = ("accepted", "ignored") if s.get("autocomplete_learn_typing", True) else ("accepted",)
+    if b.get("text") and kind in learn_kinds and not _disabled(b.get("app", ""), b.get("bundle_id", ""), s):
         learned = add_sample(app_k, str(b["text"])[-2000:])
     return {"ok": True, "learned": learned}
 
@@ -556,10 +1185,10 @@ def outcome(b: dict) -> dict:
 def stats(q: dict | None = None) -> dict:
     st = _stats()
     with E.DB_LOCK:
-        d = E.db()
+        d = _db()
         try:
-            d.executescript(SCHEMA)
             per_app = d.execute("SELECT app, count(*) FROM autocomplete_samples GROUP BY app ORDER BY 2 DESC").fetchall()
+            typed = d.execute("SELECT count(*) FROM autocomplete_samples WHERE source='typed'").fetchone()[0]
         finally:
             d.close()
     shown = max(int(st.get("shown", 0)), 1)
@@ -569,7 +1198,8 @@ def stats(q: dict | None = None) -> dict:
             "ignored": st.get("ignored", 0), "accept_rate": round(min(1.0, st.get("accepted", 0) / shown), 3),
             "days_active": len(st.get("days", [])), "since": st.get("since"),
             "top_apps": [{"app": a, "accepted": n} for a, n in top],
-            "samples": sum(n for _, n in per_app), "sample_apps": [{"app": a, "count": n} for a, n in per_app]}
+            "samples": sum(n for _, n in per_app), "typed_samples": typed,
+            "sample_apps": [{"app": a, "count": n} for a, n in per_app]}
 
 
 def clear(b: dict) -> dict:
@@ -577,9 +1207,8 @@ def clear(b: dict) -> dict:
     if b.get("samples", True):
         app = (b.get("app") or "").strip().lower()
         with E.DB_LOCK:
-            d = E.db()
+            d = _db()
             try:
-                d.executescript(SCHEMA)
                 cur = d.execute("DELETE FROM autocomplete_samples" + (" WHERE app=?" if app else ""),
                                 (app,) if app else ())
                 removed = cur.rowcount
@@ -597,5 +1226,7 @@ def register():
     E.POST_ROUTES["/api/autocomplete/suggest"] = suggest
     E.STARTUP_HOOKS.append(_warm_up)
     E.POST_ROUTES["/api/autocomplete/outcome"] = outcome
+    E.POST_ROUTES["/api/autocomplete/learn"] = learn
+    E.POST_ROUTES["/api/autocomplete/prewarm"] = prewarm
     E.POST_ROUTES["/api/autocomplete/clear"] = clear
     E.GET_ROUTES["/api/autocomplete/stats"] = stats

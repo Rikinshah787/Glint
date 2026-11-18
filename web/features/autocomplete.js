@@ -1,9 +1,9 @@
 /* Autocomplete everywhere: settings section (look, help mode, keys, pacing, apps, stats). */
 (() => {
   const STYLES = [
+    { id: "ghost", label: "Ghost text" },
     { id: "under", label: "Under the line" },
     { id: "normal", label: "Inline chip" },
-    { id: "ghost", label: "Ghost text" },
   ];
   const css = `
     #set-autocomplete .ac-preview { margin-top: 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-lg);
@@ -38,32 +38,41 @@
       <span class="muted" id="acModeHint"></span></div></div>
     <div class="field"><label>Accept with</label><div class="ctl">
       <select id="acKey"><option value="tab">Tab</option><option value="backtick">\` (backtick)</option><option value="both">Tab or \`</option></select>
-      <span class="muted">Shift+key takes one word · ↓ next option · Esc dismisses</span></div></div>
+      <span class="muted">Shift+key takes one word · ↓ next option · Esc dismisses · ⌥Esc turns it off in that app</span></div></div>
     <div class="field"><label>Pacing</label><div class="ctl">
       Suggest after a <input type="number" id="acPause" min="150" max="3000" step="50" style="width:84px"> ms pause,
       once at least <input type="number" id="acMin" min="1" max="200" style="width:70px"> characters are typed</div></div>
-    <div class="field"><label>Model</label><div class="ctl">
-      <input type="text" id="acModel" placeholder="Same as Ask" style="width:240px">
-      <span class="muted">Optional. A faster model makes suggestions appear sooner.</span></div></div>
+    <div class="field"><label>Model</label><div class="ctl" style="flex-direction:column;align-items:flex-start;gap:6px">
+      <div class="seg-ctl" id="acRoute"><button data-r="auto">Auto</button><button data-r="on_device">On this Mac only</button><button data-r="cloud">Cloud</button></div>
+      <span class="muted" id="acRouteHint"></span>
+      <div><input type="text" id="acModel" placeholder="Default: Claude Haiku, or your OpenAI model" style="width:280px">
+      <span class="muted">Optional cloud model for suggestions.</span></div></div></div>
+    <div class="field"><label>Learn my style</label><div class="ctl">
+      <label><input type="checkbox" id="acLearn"> Learn how I write from sentences I finish typing (kept only on this Mac)</label></div></div>
     <div class="field"><label>Never suggest in</label><div class="ctl" style="flex:1">
       <textarea id="acApps" rows="3" style="width:100%" placeholder="One app name (or bundle id) per line"></textarea>
-      <span class="muted">Code editors, terminals, password fields and password managers are always skipped.</span></div></div>
+      <span class="muted">Terminals, password fields and password managers are always skipped. In VS Code, Cursor and Windsurf only chat and commit boxes get suggestions, never the code.</span></div></div>
     <div class="field"><label></label><div class="ctl"><button class="primary" id="acSave">Save autocomplete settings</button></div></div>
     <div class="field"><label>So far</label><div class="ctl" style="flex-direction:column;align-items:flex-start">
       <div class="ac-stats" id="acStats"></div><div class="muted" id="acLearned" style="font-size:12.5px"></div></div></div>
     <div class="field"><label>Learned writing</label><div class="ctl">
-      <button class="ghost danger" id="acClear">Clear learned samples</button>
+      <button class="ghost danger" id="acClear">Clear learned style</button>
       <button class="ghost" id="acReset">Reset stats</button></div></div>`;
 
   const card = HS.registerSettings({
     id: "autocomplete",
     title: "Autocomplete",
-    description: "While you type in any app, Glint offers a short continuation near the cursor. Press the accept key to take the next phrase. It learns from text you accept and write, kept only on this Mac.",
+    description: "While you type in any app, Glint offers a short continuation at the cursor, using what's on screen and in your memory. Press the accept key to take the next phrase. It learns how you write from text you type and accept, kept only on this Mac.",
     html,
     onLoad: load,
   });
   const $ = (id) => card.querySelector(`#${id}`);
-  let style_ = "under", mode = "automatic";
+  let style_ = "ghost", mode = "automatic", route = "auto";
+  const ROUTE_HINTS = {
+    auto: "Uses a fast cloud model when you've added a Claude or OpenAI key (falls back to Apple's on-device model if it's slow); otherwise on-device.",
+    on_device: "Apple's on-device model only: nothing you type leaves this Mac.",
+    cloud: "Always uses your Claude or OpenAI key (Claude Haiku by default); on-device when no key is set.",
+  };
 
   function keyLabel() { return { tab: "Tab", backtick: "`", both: "Tab" }[$("acKey").value] || "Tab"; }
   function renderPreview() {
@@ -76,6 +85,8 @@
     else p.innerHTML = `${typed}<span class="ac-chip ac-under">${chip}</span>`;
     card.querySelectorAll("#acStyle button").forEach((b) => b.classList.toggle("on", b.dataset.s === style_));
     card.querySelectorAll("#acMode button").forEach((b) => b.classList.toggle("on", b.dataset.m === mode));
+    card.querySelectorAll("#acRoute button").forEach((b) => b.classList.toggle("on", b.dataset.r === route));
+    $("acRouteHint").textContent = ROUTE_HINTS[route] || "";
     $("acModeHint").textContent = mode === "on_demand" ? "Press Option+Tab in a text field to ask for a suggestion" : "Suggestions appear when you pause typing (Option+Tab asks right away)";
   }
 
@@ -87,16 +98,18 @@
         [s.shown, "shown"], [pct, "accept rate"], [s.days_active, "days used"]]
         .map(([v, l]) => `<div><b>${HS.esc(String(v))}</b><span>${l}</span></div>`).join("");
       const apps = s.sample_apps.slice(0, 5).map((a) => `${HS.esc(a.app)} (${a.count})`).join(", ");
-      $("acLearned").innerHTML = s.samples ? `${s.samples} writing samples learned · ${apps}` : "No writing samples learned yet.";
+      $("acLearned").innerHTML = s.samples ? `${s.samples} writing samples learned (${s.typed_samples || 0} from your typing) · ${apps}` : "No writing samples learned yet.";
     } catch (e) { $("acStats").textContent = e.message; }
   }
 
   function load(settings) {
     $("acOn").checked = settings.autocomplete_enabled !== false;
-    style_ = settings.autocomplete_style || "under";
+    style_ = settings.autocomplete_style || "ghost";
+    route = settings.autocomplete_model_mode || "auto";
+    $("acLearn").checked = settings.autocomplete_learn_typing !== false;
     mode = settings.autocomplete_mode || "automatic";
     $("acKey").value = settings.autocomplete_accept_key || "tab";
-    $("acPause").value = settings.autocomplete_pause_ms ?? 450;
+    $("acPause").value = settings.autocomplete_pause_ms ?? 350;
     $("acMin").value = settings.autocomplete_min_chars ?? 12;
     $("acModel").value = settings.autocomplete_model || "";
     $("acApps").value = (settings.autocomplete_disabled_apps || []).join("\n");
@@ -119,6 +132,8 @@
 
   card.querySelectorAll("#acStyle button").forEach((b) => b.onclick = () => { style_ = b.dataset.s; renderPreview(); save({ autocomplete_style: style_ }, true); });
   card.querySelectorAll("#acMode button").forEach((b) => b.onclick = () => { mode = b.dataset.m; renderPreview(); save({ autocomplete_mode: mode }, true); });
+  card.querySelectorAll("#acRoute button").forEach((b) => b.onclick = () => { route = b.dataset.r; renderPreview(); save({ autocomplete_model_mode: route }, true); });
+  $("acLearn").onchange = () => save({ autocomplete_learn_typing: $("acLearn").checked }, true);
   $("acKey").onchange = () => { renderPreview(); save({ autocomplete_accept_key: $("acKey").value }, true); };
   $("acOn").onchange = () => save({ autocomplete_enabled: $("acOn").checked });
   $("acSave").onclick = () => {
@@ -126,14 +141,15 @@
     save({
       autocomplete_enabled: $("acOn").checked,
       autocomplete_style: style_, autocomplete_mode: mode, autocomplete_accept_key: $("acKey").value,
-      autocomplete_pause_ms: clamp($("acPause").value, 150, 3000, 450),
+      autocomplete_model_mode: route, autocomplete_learn_typing: $("acLearn").checked,
+      autocomplete_pause_ms: clamp($("acPause").value, 150, 3000, 350),
       autocomplete_min_chars: clamp($("acMin").value, 1, 200, 12),
       autocomplete_model: $("acModel").value.trim(),
       autocomplete_disabled_apps: $("acApps").value.split("\n").map((s) => s.trim()).filter(Boolean),
     });
   };
   $("acClear").onclick = async () => {
-    if (!(await HS.confirmDialog("Clear learned writing?", "Autocomplete forgets the samples of your writing it keeps per app. Stats stay."))) return;
+    if (!(await HS.confirmDialog("Clear learned style?", "Autocomplete forgets the samples of your writing it keeps per app (typed and accepted). Stats stay."))) return;
     const r = await HS.api("/api/autocomplete/clear", { samples: true });
     HS.toast(`Removed ${r.removed_samples} samples`); loadStats();
   };

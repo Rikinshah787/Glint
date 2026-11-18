@@ -14,6 +14,7 @@ import sys
 import threading
 import time
 import uuid
+from collections import deque
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -39,6 +40,8 @@ CAPTURE_BIN = REPO / "bin" / "glint-capture"
 
 KEYCHAIN_SERVICE = "Glint"
 SELF_APPS = {"glint"}  # never capture our own windows
+BROWSERS = {"google chrome", "safari", "arc", "brave browser", "microsoft edge", "firefox", "chromium", "opera",
+            "vivaldi", "dia", "orion"}
 # System authentication / lock surfaces: never captured, never counted.
 SYSTEM_SKIP_APPS = {"securityagent", "coreautha", "loginwindow", "screensaverengine",
                     "universalaccessauthwarn", "coreservicesuiagent", "authenticationservicesagent",
@@ -64,6 +67,7 @@ DEFAULT_SETTINGS = {
     "capture_text_all_apps": True,     # False: only apps in text_apps get window text
     "text_apps": [],
     "min_session_minutes": 2,
+    "session_merge_minutes": 10,       # resume the previous session if you're back within this many minutes
     "ocr_fallback": False,
     "blocked_apps": sorted(mem.DEFAULT_BLOCKED_APPS),
     "retention_days": None,
@@ -95,6 +99,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     quality     TEXT,
     note        TEXT,
     project     TEXT,
+    boundary    TEXT,                          -- 'topic' when split off from the previous session
     status      TEXT NOT NULL DEFAULT 'active'      -- active | ended | summarized
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at DESC);
@@ -147,7 +152,8 @@ def init_db() -> None:
                                 ("tasks", "logs", "TEXT NOT NULL DEFAULT '[]'"),
                                 ("chat_threads", "renamed", "INTEGER NOT NULL DEFAULT 0"),
                                 ("sessions", "state_name", "TEXT"), ("sessions", "quality", "TEXT"),
-                                ("sessions", "note", "TEXT"), ("sessions", "project", "TEXT")):
+                                ("sessions", "note", "TEXT"), ("sessions", "project", "TEXT"),
+                                ("sessions", "boundary", "TEXT")):
             if col not in {r[1] for r in d.execute(f"PRAGMA table_info({table})")}:
                 d.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
         # One-time move of old per-line notes into the lasting-memory document.
@@ -303,15 +309,63 @@ class Capturer(threading.Thread):
         self.focus_pending = False
         self.last_full = 0.0
         self.last_poll = 0.0
+        self.session_started = 0.0
+        self.sig: dict[str, float] = {}          # topic key -> seconds in the current session
+        self.recent: deque = deque()             # (time, topic key, seconds) for the last 10 minutes
+        self.cur_host: str | None = None
         self.status = {"state": "starting", "app": None, "title": None, "at": None,
                        "ax_trusted": None, "note": None, "trigger": None}
 
     # -- session lifecycle
-    def start_session(self, ts: int) -> str:
+    def start_session(self, ts: int, topic_split: bool = False) -> str:
+        self.sig, self.recent, self.session_started = {}, deque(), time.time()
+        # Coming back within the merge window (a short break, a restart) continues the same work session.
+        merge_ms = load_settings()["session_merge_minutes"] * 60_000
+        with DB_LOCK:
+            d = db()
+            prev = None if topic_split else d.execute("SELECT id, last_seen FROM sessions WHERE status != 'active' "
+                             "ORDER BY last_seen DESC LIMIT 1").fetchone()
+            if prev and 0 <= ts - prev[1] <= merge_ms:
+                d.execute("UPDATE sessions SET status='active', ended_at=NULL WHERE id=?", (prev[0],))
+                d.commit()
+                d.close()
+                log(f"session resumed {prev[0][:8]}")
+                return prev[0]
+            d.close()
         sid = str(uuid.uuid4())
-        _write("INSERT INTO sessions (id, started_at, last_seen) VALUES (?,?,?)", (sid, ts, ts))
-        log(f"session started {sid[:8]}")
+        _write("INSERT INTO sessions (id, started_at, last_seen, boundary) VALUES (?,?,?,?)",
+               (sid, ts, ts, "topic" if topic_split else None))
+        log(f"session started {sid[:8]}{' (new topic)' if topic_split else ''}")
         return sid
+
+    def topic_key(self, app: str) -> str:
+        # Within a browser, the site is the topic (GitHub vs WhatsApp are different work).
+        if app.lower() in BROWSERS and self.cur_host:
+            return self.cur_host.removeprefix("www.")
+        return app
+
+    def track_topic(self, app: str, seconds: float, now: float) -> None:
+        if seconds <= 0:
+            return
+        k = self.topic_key(app)
+        self.sig[k] = self.sig.get(k, 0.0) + seconds
+        self.recent.append((now, k, seconds))
+        while self.recent and now - self.recent[0][0] > 600:
+            self.recent.popleft()
+
+    def topic_changed(self, now: float) -> bool:
+        """After 20 min, a last-10-minutes focus that shares nothing with the session's main topics."""
+        if not self.session_started or now - self.session_started < 20 * 60:
+            return False
+        recent: dict[str, float] = {}
+        for _, k, sec in self.recent:
+            recent[k] = recent.get(k, 0.0) + sec
+        if sum(recent.values()) < 8 * 60:  # need ~8 active minutes of evidence
+            return False
+        new_focus = {k for k, v in recent.items() if v >= 120}
+        earlier = {k: self.sig.get(k, 0.0) - recent.get(k, 0.0) for k in self.sig}
+        main = {k for k, _ in sorted(earlier.items(), key=lambda x: -x[1])[:3] if earlier[k] >= 120}
+        return bool(new_focus) and bool(main) and not (new_focus & main)
 
     def end_session(self, reason: str) -> None:
         sid, self.session_id = self.session_id, None
@@ -413,6 +467,10 @@ class Capturer(threading.Thread):
                 d.commit()
                 d.close()
             self.status.update(state="capturing", app=app, title=title, at=ts)
+            self.track_topic(app, elapsed, now)
+            if self.topic_changed(now):
+                self.end_session("new topic")
+                self.session_id = self.start_session(now_ms(), topic_split=True)
         self.last_poll = now
 
     def full_capture(self, s: dict, trigger: str) -> None:
@@ -430,6 +488,7 @@ class Capturer(threading.Thread):
         if not text.strip():
             text, source = f"{app} — {title}", "title_only"
         url = snap.get("url") if snap else None
+        self.cur_host = web_host(url)
         with DB_LOCK:
             d = db()
             cid = mem.add_chunk(d, text, app_id=app.lower(), title=title,
@@ -482,7 +541,9 @@ SESSION_SCHEMA = {
 SESSION_SYSTEM = (
     "You review one work session reconstructed from screen captures on the user's own Mac. Name it "
     "(2-5 words, specific: the project or document, never 'Work session'), summarise what was actually "
-    "done in 1-3 sentences (cite documents, people, sites), tag the dominant activity, and score four "
+    "done in 1-3 sentences (cite documents, people, sites). The title names the work, never the user "
+    "themselves: leave out the account owner's name, browser profile names and app chrome like "
+    "'Google Chrome'. Tag the dominant activity, and score four "
     "quality axes from 0-100: focus (staying on one thing), depth (substantive vs shallow work), "
     "consistency (steady vs fragmented) and recovery (getting back on track after interruptions), with "
     "a one-sentence rationale. Give 0-3 insights; each has a short headline, what it implies for the "
@@ -503,24 +564,53 @@ def clean_title(title: str, fallback: str) -> str:
     return t
 
 
+_BROWSER_TAIL = re.compile(r"\s+[-–—]\s+(Google Chrome|Chromium|Brave|Microsoft Edge|Arc|Safari|Firefox)(\s+[-–—]\s+.*)?$")
+_TITLE_NOISE = re.compile(r"\s*[-–—]\s*High memory usage\s*[-–—]\s*[\d.,]+\s*[KMG]B", re.I)
+
+
+def clean_window_title(title: str) -> str:
+    """Strip browser names, profile labels and status noise from a window title."""
+    t = _TITLE_NOISE.sub("", title or "")
+    return _BROWSER_TAIL.sub("", t).strip()
+
+
 def session_digest(sid: str, budget: int = 24000) -> str:
+    """A proportional picture of a session: where the time went (per window), then excerpts from the
+    windows that mattered most, so even a long session fits a small model's context."""
     with DB_LOCK:
         d = db()
         s = d.execute("SELECT started_at, last_seen, apps FROM sessions WHERE id=?", (sid,)).fetchone()
-        rows = d.execute("SELECT app_id, window_title, captured_at, text FROM memory_chunks "
+        rows = d.execute("SELECT app_id, window_title, url_host, captured_at, text, source FROM memory_chunks "
                          "WHERE session_id=? ORDER BY captured_at", (sid,)).fetchall()
         d.close()
     if not s:
         raise ValueError("unknown session")
     apps = json.loads(s[2])
+    gap_cap = 3 * load_settings()["capture_interval_s"] * 1000
+    windows: dict[tuple, dict] = {}
+    for i, (app, title, host, ts, text, source) in enumerate(rows):
+        nxt = rows[i + 1][3] if i + 1 < len(rows) else s[1]
+        w = windows.setdefault((app, clean_window_title(title)), {"ms": 0, "host": host, "texts": [], "first": ts})
+        w["ms"] += max(0, min(nxt - ts, gap_cap))
+        if source != "title_only" and text:
+            w["texts"].append(text)
+    ranked = sorted(windows.items(), key=lambda kv: -kv[1]["ms"])
     lines = [f"Session {fmt_time(s[0])} - {fmt_time(s[1])} ({round((s[1] - s[0]) / 60000)} min)",
-             "Time per app: " + ", ".join(f"{a} {round(v / 60)}m" for a, v in
-                                          sorted(apps.items(), key=lambda x: -x[1])),
-             f"Window switches captured: {len(rows)}"]
-    per = max(300, budget // max(1, len(rows)))
-    for app, title, ts, text in rows:
-        lines.append(f"\n[{fmt_time(ts)}] {app} — {title}\n{re.sub(r'\s+', ' ', text)[:per]}")
-    return "\n".join(lines)[:budget]
+             "Time per app: " + ", ".join(f"{a} {max(1, round(v / 60))}m" for a, v in
+                                          sorted(apps.items(), key=lambda x: -x[1])[:8]),
+             "Windows by time spent:"]
+    for (app, title), w in ranked[:25]:
+        lines.append(f"- {app} — {title[:90] or '(untitled)'}{' (' + w['host'] + ')' if w['host'] else ''}: "
+                     f"{max(1, round(w['ms'] / 60000))}m")
+    head = "\n".join(lines)
+    room = max(0, budget - len(head) - 200)
+    top = [kv for kv in ranked if kv[1]["texts"]][:8]
+    per = max(200, room // max(1, len(top))) if top else 0
+    excerpts = ["\nWhat was on screen in the main windows:"] if top else []
+    for (app, title), w in top:
+        latest = re.sub(r"\s+", " ", w["texts"][-1])
+        excerpts.append(f"\n[{app} — {title[:80]}]\n{latest[:per]}")
+    return (head + "\n".join(excerpts))[:budget]
 
 
 SESSION_SCHEMA_EXTRA: dict = {}   # features add summary fields: {"name": json_schema}
@@ -537,7 +627,9 @@ def session_schema() -> dict:
 
 
 def summarize_session(sid: str) -> dict:
-    r = provider().complete_json(SESSION_SYSTEM, session_digest(sid), session_schema())
+    llm = provider()
+    budget = 4000 if isinstance(llm, ai.AppleProvider) else 24000
+    r = llm.complete_json(SESSION_SYSTEM, session_digest(sid, budget), session_schema())
     q = {k: max(0, min(100, int(r["quality"][k]))) for k in ("focus", "depth", "consistency", "recovery")}
     overall = round(sum(q.values()) / 4)
     top_app = (session_rows("s.id = ?", (sid,), 1) or [{"apps": [("Work", 0)]}])[0]["apps"][:1]
@@ -562,6 +654,80 @@ def summarize_session_safe(sid: str) -> None:
         log(f"session summary skipped: {e}")
     except Exception as e:
         log(f"session summary failed: {e}")
+
+
+# ------------------------------------------------------- session upkeep
+# Fold short gaps into one work session, and make sure every finished session gets a report
+# (a summary queued at quit/restart would otherwise be lost).
+
+def compact_sessions() -> int:
+    """Merge consecutive finished sessions separated by less than the merge window."""
+    merge_ms = load_settings()["session_merge_minutes"] * 60_000
+    merged: list[str] = []
+    with DB_LOCK:
+        d = db()
+        rows = d.execute("SELECT id, started_at, last_seen, apps, boundary FROM sessions WHERE status != 'active' "
+                         "ORDER BY started_at").fetchall()
+        prev = None
+        for sid, started, last, apps, boundary in rows:
+            if prev and boundary != "topic" and 0 <= started - prev["last"] <= merge_ms:
+                merged_apps = json.loads(prev["apps"] or "{}")
+                for a, secs in json.loads(apps or "{}").items():
+                    merged_apps[a] = round(merged_apps.get(a, 0) + secs, 1)
+                prev["apps"] = json.dumps(merged_apps)
+                prev["last"] = max(prev["last"], last)
+                d.execute("UPDATE memory_chunks SET session_id=? WHERE session_id=?", (prev["id"], sid))
+                d.execute("UPDATE sessions SET apps=?, last_seen=?, ended_at=?, status='ended' WHERE id=?",
+                          (prev["apps"], prev["last"], prev["last"], prev["id"]))
+                d.execute("DELETE FROM sessions WHERE id=?", (sid,))
+                merged.append(sid)
+            else:
+                prev = {"id": sid, "last": last, "apps": apps}
+        d.commit()
+        d.close()
+    for sid in merged:
+        for hook in SESSION_DELETE_HOOKS:
+            try:
+                hook(sid)
+            except Exception as e:
+                log(f"session delete hook failed: {e}")
+    if merged:
+        log(f"sessions compacted: merged {len(merged)} short sessions")
+    return len(merged)
+
+
+def summarize_pending(limit: int = 1) -> int:
+    """Summarize finished sessions that still have no report (newest first)."""
+    s = load_settings()
+    if not s["summarize_sessions"]:
+        return 0
+    try:
+        provider(s)
+    except ai.ProviderError:
+        return 0
+    with DB_LOCK:
+        d = db()
+        rows = d.execute("SELECT id FROM sessions WHERE status='ended' AND (last_seen - started_at) >= ? "
+                         "ORDER BY last_seen DESC LIMIT ?", (s["min_session_minutes"] * 60_000, limit)).fetchall()
+        d.close()
+    for (sid,) in rows:
+        summarize_session_safe(sid)
+    return len(rows)
+
+
+def session_upkeep_loop() -> None:
+    STOP.wait(20)  # let the engine settle and the on-device model warm up
+    try:
+        compact_sessions()
+    except Exception as e:
+        log(f"session compaction failed: {e}")
+    while not STOP.is_set():
+        try:
+            n = summarize_pending(1)
+        except Exception as e:
+            log(f"session catch-up failed: {e}")
+            n = 0
+        STOP.wait(15 if n else 300)  # work through a backlog quickly, then check every 5 minutes
 
 
 # ---------------------------------------------------------------- queries
@@ -1806,6 +1972,8 @@ def main():
         CAPTURER.start()
     for hook in STARTUP_HOOKS:
         threading.Thread(target=hook, daemon=True).start()
+    if os.environ.get("GLINT_NO_CAPTURE") != "1":
+        threading.Thread(target=session_upkeep_loop, daemon=True, name="session-upkeep").start()
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     print(json.dumps({"ready": True, "port": PORT, "token": TOKEN}), flush=True)
     log(f"Glint engine on http://127.0.0.1:{PORT}/ (data: {APP_SUPPORT})")

@@ -15,7 +15,7 @@ is stored, where, and what can leave the Mac. If anything here is wrong, that's 
 | Knowledge graph | Entity names, types, aliases, which sessions mention them |
 | Chats, tasks, skills | What you and the assistant wrote |
 | Profile | Your bio and lasting-memory doc |
-| Writing samples | Short snippets you accepted or typed, per app, used to match your voice in autocomplete (capped per app) |
+| Writing samples | Sentences you finish typing (on Return, send, or a pause) and suggestions you accepted, per app, used to match your voice in autocomplete. Capped per app; never from password fields, password managers, terminals or code editors; URLs, code and number-heavy text are skipped. Turn off with **Learn from what I type** or wipe with **Clear learned style** (Settings → Autocomplete). |
 | Assist history | Drafts and cards offered, and what you did with them |
 | Caches | App icons, site favicons |
 
@@ -37,7 +37,7 @@ memory briefly and not written to the database.
 | Using the on-device model | Nothing | — |
 | Using Claude or OpenAI for Ask / Quick Ask | Your question, the chat so far, and the memory snippets, screen text and tool results the agent retrieves for that answer; the window screenshot if Quick Ask attached one | The provider you chose, with your key |
 | Session reports (cloud model) | A digest of that session's captures (≤24k characters) | Same |
-| Autocomplete (cloud model) | Text before your cursor, a little screen context, a few of your writing samples for that app | Same (on-device by default) |
+| Autocomplete (cloud model, only if you add a key and pick *Auto* or *Cloud*) | Text around your cursor, the visible conversation or document in that window, up to two matching memory snippets, and two of your writing samples for that app | Same (on-device by default; set *On-device* to never send) |
 | Dictation | Audio to OpenAI Whisper if you set an OpenAI key; otherwise transcribed on-device. The transcript to your model for cleanup | Same |
 | Web search in Ask | Search queries the agent decides to run | Anthropic's web search tool (Claude only, can be turned off) |
 | Site icons | A request for `https://<host>/favicon.ico` for hosts you visited | That website (turn off "Site icons" in Settings) |
